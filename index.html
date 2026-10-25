@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Virtual IMAX Simulator - Anti-Flicker Depth</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #030508; font-family: 'Inter', sans-serif; user-select: none; }
+        #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 4px; }
+        input[type=range] { -webkit-appearance: none; background: rgba(255, 255, 255, 0.1); border-radius: 6px; height: 6px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #3b82f6; cursor: pointer; box-shadow: 0 0 10px rgba(59, 130, 246, 0.8); }
+        .glass-panel { background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    </style>
+</head>
+<body class="text-slate-200">
+    <div id="canvas-container"></div>
+    <video id="imax-video" crossorigin="anonymous" loop playsinline class="hidden"></video>
+    <canvas id="depth-canvas" class="hidden" width="128" height="72"></canvas>
+
+    <header class="absolute top-0 left-0 w-full p-4 z-10 flex justify-between items-center pointer-events-none">
+        <div class="flex items-center gap-3 pointer-events-auto">
+            <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-500/30 flex items-center justify-center">
+                <i class="fa-solid fa-film text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight tracking-wide text-white">IMAX 3D Master Simulator</h1>
+                <p class="text-xs text-slate-400">Smooth Depth Shader & Full Cinema</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 pointer-events-auto">
+            <button id="btn-toggle-ui" class="glass-panel px-3 py-2 rounded-xl text-sm font-medium hover:bg-slate-800/80 transition flex items-center gap-2 text-slate-300">
+                <i class="fa-solid fa-sliders text-blue-400"></i><span class="hidden sm:inline">Controls</span>
+            </button>
+            <button id="btn-recenter" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white transition"><i class="fa-solid fa-crosshairs"></i></button>
+            <button id="btn-fullscreen" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white transition"><i class="fa-solid fa-expand"></i></button>
+        </div>
+    </header>
+
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-[92%] max-w-2xl glass-panel rounded-2xl p-3 shadow-2xl flex flex-col gap-2 border border-slate-700/50">
+        <div class="flex items-center gap-3 px-1">
+            <span id="time-current" class="text-xs font-mono text-slate-400 min-w-[38px]">00:00</span>
+            <input id="seek-bar" type="range" min="0" max="100" value="0" class="w-full cursor-pointer">
+            <span id="time-total" class="text-xs font-mono text-slate-400 min-w-[38px]">00:00</span>
+        </div>
+        <div class="flex items-center justify-between px-1 pt-1">
+            <div class="flex items-center gap-2">
+                <button id="btn-play" class="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition shadow-lg shadow-blue-600/30"><i class="fa-solid fa-play text-base"></i></button>
+                <button id="btn-mute" class="w-10 h-10 rounded-xl glass-panel text-slate-300 hover:text-white flex items-center justify-center transition"><i class="fa-solid fa-volume-high"></i></button>
+                <input id="volume-bar" type="range" min="0" max="1" step="0.05" value="0.8" class="w-20 hidden sm:block">
+            </div>
+            <div class="flex items-center gap-2">
+                <label for="video-file-input" class="cursor-pointer glass-panel px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-800 text-slate-300 transition flex items-center gap-2 border border-blue-500/30">
+                    <i class="fa-solid fa-upload text-blue-400"></i><span class="hidden sm:inline">Upload Video</span>
+                </label>
+                <input type="file" id="video-file-input" accept="video/*" class="hidden">
+                <select id="sample-video-select" class="glass-panel text-xs rounded-xl px-2.5 py-2 text-slate-200 bg-slate-900/90 border border-slate-700">
+                    <option value="sample1">Sample 1: Tears of Steel</option>
+                    <option value="sample2">Sample 2: Sintel</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <aside id="controls-panel" class="absolute top-20 right-4 z-20 w-80 max-h-[calc(100vh-120px)] glass-panel rounded-2xl p-5 overflow-y-auto custom-scrollbar flex flex-col gap-5 border border-slate-700/60 transition-all duration-300 transform translate-x-0">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h2 class="font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-sliders text-blue-400"></i> Settings & Engine</h2>
+            <button id="btn-close-panel" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs"><span class="font-medium text-blue-300">Depth Displace Factor</span><span id="val-depth" class="font-mono text-blue-400">0.6x</span></div>
+            <input id="slider-depth" type="range" min="0" max="2.0" step="0.05" value="0.6">
+        </div>
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Depth Anti-Flicker Smooth</span><span id="val-smooth" class="font-mono text-blue-400">88%</span></div>
+            <input id="slider-smooth" type="range" min="0.02" max="0.5" step="0.02" value="0.12">
+        </div>
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Screen Curvature Arc</span><span id="val-curvature" class="font-mono text-blue-400">0.35</span></div>
+            <input id="slider-curvature" type="range" min="0" max="0.8" step="0.05" value="0.35">
+        </div>
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-medium text-slate-400">Seating Position</label>
+            <div class="grid grid-cols-3 gap-1.5">
+                <button id="btn-seat-front" class="glass-panel py-1.5 rounded-lg text-xs hover:bg-slate-800 text-slate-300">Front</button>
+                <button id="btn-seat-center" class="glass-panel py-1.5 rounded-lg text-xs bg-blue-600/30 border border-blue-500 text-blue-300 font-semibold">Center</button>
+                <button id="btn-seat-back" class="glass-panel py-1.5 rounded-lg text-xs hover:bg-slate-800 text-slate-300">Back</button>
+            </div>
+        </div>
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Field of View (FOV)</span><span id="val-fov" class="font-mono text-blue-400">65°</span></div>
+            <input id="slider-fov" type="range" min="45" max="95" step="1" value="65">
+        </div>
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Ambilight Ambient Glow</span><span id="val-light" class="font-mono text-blue-400">80%</span></div>
+            <input id="slider-light" type="range" min="0" max="2" step="0.1" value="0.8">
+        </div>
+    </aside>
+
+    <script>
+        const SAMPLES = { sample1: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4', sample2: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4' };
+        const state = { aspectRatio: 1.43, curvature: 0.35, scale: 1.0, fov: 65, depthIntensity: 0.6, smoothFactor: 0.12, lightIntensity: 0.8, curDistance: 22 };
+        const W = 128, H = 72;
+        let scene, camera, renderer, controls, screenMesh, screenMaterial, videoTexture, spotLight;
+        let rawDepthArray = new Float32Array(W * H), smoothedDepthArray = new Float32Array(W * H), byteDepthArray = new Uint8Array(W * H), depthDataTexture;
+        const video = document.getElementById('imax-video');
+        const depthCanvas = document.getElementById('depth-canvas');
+        const depthCtx = depthCanvas.getContext('2d', { willReadFrequently: true });
+
+        window.addEventListener('DOMContentLoaded', () => { initThreeJS(); initTheaterEnvironment(); createIMAXDepthScreen(); initVideoPlayer(); setupUIEventListeners(); animate(); });
+
+        function initThreeJS() {
+            scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x05070c, 0.018);
+            camera = new THREE.PerspectiveCamera(state.fov, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 1.5, state.curDistance);
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.shadowMap.enabled = true;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxPolarAngle = Math.PI / 2 + 0.05; controls.minDistance = 8; controls.maxDistance = 45; controls.target.set(0, 2, 0);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function initTheaterEnvironment() {
+            scene.add(new THREE.AmbientLight(0x1a202c, 0.4));
+            spotLight = new THREE.PointLight(0x3b82f6, 1.2, 50, 1.5); spotLight.position.set(0, 5, 2); scene.add(spotLight);
+            const sideGlowLeft = new THREE.PointLight(0x3b82f6, 0.45, 34); sideGlowLeft.position.set(-18, 5, 5); scene.add(sideGlowLeft);
+            const sideGlowRight = new THREE.PointLight(0x3b82f6, 0.45, 34); sideGlowRight.position.set(18, 5, 5); scene.add(sideGlowRight);
+            window.ambilightLights = [sideGlowLeft, sideGlowRight];
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x0c1017, roughness: 0.85 }), floorMat = new THREE.MeshStandardMaterial({ color: 0x070a0f, roughness: 0.6 });
+            const backWall = new THREE.Mesh(new THREE.PlaneGeometry(60, 35), wallMat); backWall.position.set(0, 12.5, -5); scene.add(backWall);
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 70), floorMat); floor.rotation.x = -Math.PI / 2; floor.position.set(0, -5, 30); floor.receiveShadow = true; scene.add(floor);
+            const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(70, 35), wallMat); leftWall.rotation.y = Math.PI / 2; leftWall.position.set(-30, 12.5, 30); scene.add(leftWall);
+            const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(70, 35), wallMat); rightWall.rotation.y = -Math.PI / 2; rightWall.position.set(30, 12.5, 30); scene.add(rightWall);
+            createTheaterSeats();
+        }
+
+        function createTheaterSeats() {
+            const seatGroup = new THREE.Group();
+            const upholstery = new THREE.MeshStandardMaterial({ color: 0x241018, roughness: 0.82 }), cushionMaterial = new THREE.MeshStandardMaterial({ color: 0x3b1824, roughness: 0.78 }), cupMaterial = new THREE.MeshStandardMaterial({ color: 0x090c12, roughness: 0.3 });
+            const rows = 5, seatsPerRow = 10, seatWidth = 1.65, seatDepth = 1.45, rowSpacing = 3.0;
+            function addSeat(x, y, z, facesPositiveZ) {
+                const direction = facesPositiveZ ? 1 : -1;
+                const seat = new THREE.Mesh(new THREE.BoxGeometry(seatWidth, 0.42, seatDepth), cushionMaterial); seat.position.set(x, y, z); seatGroup.add(seat);
+                const back = new THREE.Mesh(new THREE.BoxGeometry(seatWidth, 1.55, 0.34), upholstery); back.position.set(x, y + 0.78, z - direction * (seatDepth * 0.46)); seatGroup.add(back);
+                const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.48, 0.38), cushionMaterial); headrest.position.set(x, y + 1.63, z - direction * (seatDepth * 0.46)); seatGroup.add(headrest);
+                for (const side of [-1, 1]) {
+                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.34, 1.05), upholstery); arm.position.set(x + side * (seatWidth / 2 + 0.1), y + 0.28, z); seatGroup.add(arm);
+                    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 12), cupMaterial); cup.rotation.x = Math.PI / 2; cup.position.set(x + side * (seatWidth / 2 + 0.1), y + 0.47, z + 0.18); seatGroup.add(cup);
+                }
+            }
+            for (let r = 0; r < rows; r++) {
+                const z = 9 + r * rowSpacing, y = -4 + r * 0.48;
+                for (let s = 0; s < seatsPerRow; s++) addSeat((s - (seatsPerRow - 1) / 2) * 2.0, y, z, true);
+            }
+            for (let r = 0; r < rows; r++) {
+                const z = -9 - r * rowSpacing, y = -4 + r * 0.48;
+                for (let s = 0; s < seatsPerRow; s++) addSeat((s - (seatsPerRow - 1) / 2) * 2.0, y, z, false);
+            }
+            scene.add(seatGroup);
+        }
+
+        function createIMAXDepthScreen() {
+            if (screenMesh) scene.remove(screenMesh);
+            videoTexture = new THREE.VideoTexture(video); videoTexture.minFilter = THREE.LinearFilter; videoTexture.magFilter = THREE.LinearFilter;
+            depthDataTexture = new THREE.DataTexture(byteDepthArray, W, H, THREE.RedFormat, THREE.UnsignedByteType); depthDataTexture.minFilter = THREE.LinearFilter; depthDataTexture.magFilter = THREE.LinearFilter; depthDataTexture.needsUpdate = true;
+            const screenHeight = 14 * state.scale, screenWidth = screenHeight * state.aspectRatio;
+            const geometry = new THREE.PlaneGeometry(screenWidth, screenHeight, 80, 45);
+            const vertexShader = `
+                uniform sampler2D depthTex; uniform float depthIntensity; uniform float curvature; uniform float screenWidth; varying vec2 vUv; varying float vDepth;
+                void main() {
+                    vUv = uv; float rawD = texture2D(depthTex, uv).r; float clampedDepth = clamp(rawD, 0.0, 1.0); vDepth = clampedDepth;
+                    vec3 newPosition = position; newPosition.z -= clampedDepth * depthIntensity * 1.0;
+                    if(curvature > 0.01) { float radius = screenWidth / (2.0 * sin(curvature)); newPosition.z -= radius * (1.0 - cos(newPosition.x / radius)); }
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+                }
+            `;
+            const fragmentShader = `
+                uniform sampler2D videoTex; varying vec2 vUv; varying float vDepth;
+                void main() { vec4 color = texture2D(videoTex, vUv); color.rgb += vec3(vDepth * 0.02, vDepth * 0.04, vDepth * 0.08); gl_FragColor = color; }
+            `;
+            screenMaterial = new THREE.ShaderMaterial({ uniforms: { videoTex: { value: videoTexture }, depthTex: { value: depthDataTexture }, depthIntensity: { value: state.depthIntensity }, curvature: { value: state.curvature }, screenWidth: { value: screenWidth } }, vertexShader: vertexShader, fragmentShader: fragmentShader, side: THREE.DoubleSide });
+            screenMesh = new THREE.Mesh(geometry, screenMaterial); screenMesh.position.set(0, screenHeight / 2 - 2, 0); scene.add(screenMesh);
+        }
+
+        function initVideoPlayer() {
+            video.src = SAMPLES.sample1; const btnPlay = document.getElementById('btn-play');
+            btnPlay.addEventListener('click', () => { if (video.paused) { video.play(); btnPlay.innerHTML = '<i class="fa-solid fa-pause text-base"></i>'; } else { video.pause(); btnPlay.innerHTML = '<i class="fa-solid fa-play text-base"></i>'; } });
+            video.addEventListener('timeupdate', () => { if (!isNaN(video.duration)) { document.getElementById('seek-bar').value = (video.currentTime / video.duration) * 100; document.getElementById('time-current').textContent = formatTime(video.currentTime); document.getElementById('time-total').textContent = formatTime(video.duration); } });
+            document.getElementById('seek-bar').addEventListener('input', (e) => { video.currentTime = (e.target.value / 100) * video.duration; });
+            document.getElementById('sample-video-select').addEventListener('change', (e) => { video.src = SAMPLES[e.target.value]; video.play(); });
+            document.getElementById('video-file-input').addEventListener('change', (e) => { const file = e.target.files[0]; if (file) { video.src = URL.createObjectURL(file); video.play(); } });
+        }
+
+        function updateSmoothDepthMap() {
+            if (video.paused || video.ended || video.readyState < 2) return;
+            try {
+                depthCtx.drawImage(video, 0, 0, W, H); const frameData = depthCtx.getImageData(0, 0, W, H).data;
+                let rSum = 0, gSum = 0, bSum = 0; const totalPixels = W * H;
+                for (let i = 0; i < totalPixels; i++) { const idx = i * 4; rSum += frameData[idx]; gSum += frameData[idx+1]; bSum += frameData[idx+2]; rawDepthArray[i] = (frameData[idx] * 0.299 + frameData[idx+1] * 0.587 + frameData[idx+2] * 0.114) / 255.0; }
+                const alpha = state.smoothFactor;
+                for (let y = 1; y < H - 1; y++) {
+                    for (let x = 1; x < W - 1; x++) {
+                        const idx = y * W + x;
+                        let blurAvg = (rawDepthArray[idx - W - 1] + rawDepthArray[idx - W] + rawDepthArray[idx - W + 1] + rawDepthArray[idx - 1] + rawDepthArray[idx] + rawDepthArray[idx + 1] + rawDepthArray[idx + W - 1] + rawDepthArray[idx + W] + rawDepthArray[idx + W + 1]) / 9.0;
+                        smoothedDepthArray[idx] += (blurAvg - smoothedDepthArray[idx]) * alpha;
+                        byteDepthArray[idx] = Math.floor(smoothedDepthArray[idx] * 255.0);
+                    }
+                }
+                depthDataTexture.needsUpdate = true;
+                const targetColor = new THREE.Color(`rgb(${Math.floor(rSum / totalPixels)}, ${Math.floor(gSum / totalPixels)}, ${Math.floor(bSum / totalPixels)})`);
+                spotLight.color.lerp(targetColor, 0.1); spotLight.intensity = state.lightIntensity * 1.2;
+                if (window.ambilightLights) { window.ambilightLights.forEach(light => { light.color.lerp(targetColor, 0.12); light.intensity = state.lightIntensity * 0.45; }); }
+            } catch (e) {}
+        }
+
+        function setupUIEventListeners() {
+            const panel = document.getElementById('controls-panel');
+            document.getElementById('btn-toggle-ui').addEventListener('click', () => panel.classList.toggle('translate-x-full'));
+            document.getElementById('btn-close-panel').addEventListener('click', () => panel.classList.add('translate-x-full'));
+            document.getElementById('btn-recenter').addEventListener('click', () => { camera.position.set(0, 1.5, state.curDistance); controls.target.set(0, 2, 0); });
+            document.getElementById('btn-fullscreen').addEventListener('click', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else if (document.exitFullscreen) document.exitFullscreen(); });
+            document.getElementById('slider-depth').addEventListener('input', (e) => { state.depthIntensity = parseFloat(e.target.value); document.getElementById('val-depth').textContent = state.depthIntensity.toFixed(2) + 'x'; if(screenMaterial) screenMaterial.uniforms.depthIntensity.value = state.depthIntensity; });
+            document.getElementById('slider-smooth').addEventListener('input', (e) => { state.smoothFactor = parseFloat(e.target.value); document.getElementById('val-smooth').textContent = Math.round((1 - state.smoothFactor) * 100) + '%'; });
+            document.getElementById('slider-curvature').addEventListener('input', (e) => { state.curvature = parseFloat(e.target.value); document.getElementById('val-curvature').textContent = state.curvature.toFixed(2); createIMAXDepthScreen(); });
+            document.getElementById('slider-fov').addEventListener('input', (e) => { state.fov = parseInt(e.target.value); document.getElementById('val-fov').textContent = state.fov + '°'; camera.fov = state.fov; camera.updateProjectionMatrix(); });
+            document.getElementById('slider-light').addEventListener('input', (e) => { state.lightIntensity = parseFloat(e.target.value); document.getElementById('val-light').textContent = Math.round(state.lightIntensity * 100) + '%'; });
+            document.getElementById('btn-seat-front').addEventListener('click', () => setSeat(14, 55));
+            document.getElementById('btn-seat-center').addEventListener('click', () => setSeat(22, 65));
+            document.getElementById('btn-seat-back').addEventListener('click', () => setSeat(32, 75));
+        }
+
+        function setSeat(dist, fov) { state.curDistance = dist; state.fov = fov; camera.position.set(0, 1.5, dist); camera.fov = fov; camera.updateProjectionMatrix(); document.getElementById('slider-fov').value = fov; document.getElementById('val-fov').textContent = fov + '°'; }
+        function formatTime(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`; }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        function animate() { requestAnimationFrame(animate); controls.update(); updateSmoothDepthMap(); renderer.render(scene, camera); }
+    </script>
+</body>
+</html>
