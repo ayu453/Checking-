@@ -3,244 +3,1526 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Virtual IMAX Simulator - Anti-Flicker Depth</title>
+    <title>IMAX + ScreenX Immersive Cinema Simulator</title>
+    <!-- Tailwind CSS for UI -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls for Three.js -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #030508; font-family: 'Inter', sans-serif; user-select: none; }
-        #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 4px; }
-        input[type=range] { -webkit-appearance: none; background: rgba(255, 255, 255, 0.1); border-radius: 6px; height: 6px; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #3b82f6; cursor: pointer; box-shadow: 0 0 10px rgba(59, 130, 246, 0.8); }
-        .glass-panel { background: rgba(10, 15, 26, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050508;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Custom Scrollbar for Control Panel */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.8);
+        }
+
+        /* Range Input Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(10, 15, 26, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Ambient Glow Effect on Container */
+        .glow-border {
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
+        }
+
+        #status-pill { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .control-active { border-color: rgba(59,130,246,.9) !important; background: rgba(37,99,235,.24) !important; color: #93c5fd !important; }
+        @media (max-width: 640px) {
+            #controls-panel { width: min(88vw, 340px); right: 8px; top: 68px; max-height: calc(100vh - 168px); padding: 14px; gap: 14px; }
+            #player-bar { bottom: 8px; width: calc(100% - 16px); padding: 9px; }
+            #btn-fullscreen, #btn-recenter { padding: 9px; }
+        }
+
+        /* Fallback landscape simulation when browser/device orientation lock is unavailable. */
+        body.rotate-landscape-fallback { overflow: hidden !important; }
+        body.rotate-landscape-fallback #app {
+            position: fixed !important; width: 100dvh !important; height: 100vw !important;
+            max-width: none !important; transform: rotate(90deg) translateY(-100%);
+            transform-origin: top left; left: 100vw !important; top: 0 !important;
+        }
+
+        /* Landscape phone/tablet layout: compact controls, wider playback bar. */
+        @media (orientation: landscape) and (max-height: 600px) {
+            header { padding: 8px !important; }
+            header h1 { font-size: 14px !important; }
+            header .text-xs { font-size: 9px !important; }
+            header .bg-blue-600 { padding: 6px !important; }
+            header .bg-blue-600 i { font-size: 15px !important; }
+            #status-pill { max-width: 30vw; padding: 5px 7px !important; font-size: 9px !important; }
+            #btn-toggle-ui { padding: 6px 8px !important; }
+            #btn-fullscreen, #btn-recenter { padding: 7px !important; }
+            #controls-panel {
+                top: 54px; right: 8px; width: min(300px, 42vw);
+                max-height: calc(100dvh - 112px); padding: 11px; gap: 11px;
+            }
+            #player-bar {
+                left: 8px; transform: none; bottom: 8px;
+                width: min(68vw, 760px); max-width: calc(100vw - 16px);
+                padding: 7px 10px; gap: 5px; border-radius: 14px;
+            }
+            #player-bar .flex.items-center.justify-between { gap: 8px; }
+            #player-bar button { width: 34px; height: 34px; }
+            #player-bar label { padding: 7px 9px; }
+            #player-bar input[type="range"] { max-width: 100px; }
+        }
+        @media (orientation: landscape) and (max-height: 420px) {
+            #controls-panel { top: 48px; max-height: calc(100dvh - 96px); }
+            #player-bar { width: min(64vw, 680px); }
+            #player-bar .text-xs { font-size: 10px; }
+            #player-bar button { width: 30px; height: 30px; }
+        }
     </style>
 </head>
 <body class="text-slate-200">
-    <div id="canvas-container"></div>
-    <video id="imax-video" crossorigin="anonymous" loop playsinline class="hidden"></video>
-    <canvas id="depth-canvas" class="hidden" width="128" height="72"></canvas>
 
+    <!-- WebGL Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Hidden Video & Offscreen Processing Canvas for Lighting & Depth Estimation -->
+    <video id="imax-video" crossorigin="anonymous" loop playsinline class="hidden"></video>
+    <canvas id="analysis-canvas" class="hidden" width="32" height="18"></canvas>
+    <canvas id="depth-canvas" class="hidden" width="64" height="36"></canvas>
+
+    <!-- Top Navigation Header -->
     <header class="absolute top-0 left-0 w-full p-4 z-10 flex justify-between items-center pointer-events-none">
         <div class="flex items-center gap-3 pointer-events-auto">
-            <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-500/30 flex items-center justify-center">
+            <div class="bg-blue-600 text-white p-2 rounded-xl shadow-lg shadow-blue-500/30 flex items-center justify-center">
                 <i class="fa-solid fa-film text-xl"></i>
             </div>
             <div>
-                <h1 class="font-bold text-lg leading-tight tracking-wide text-white">IMAX 3D Master Simulator</h1>
-                <p class="text-xs text-slate-400">Smooth Depth Shader & Full Cinema</p>
+                <h1 class="font-bold text-lg leading-tight tracking-wide text-white">IMAX 3D Simulator</h1>
+                <p class="text-xs text-slate-400">IMAX + ScreenX Engine v3.0 Depth Pro</p>
             </div>
         </div>
+
+        <!-- Right Quick Controls -->
         <div class="flex items-center gap-2 pointer-events-auto">
+            <span id="status-pill" class="glass-panel rounded-lg px-2 py-2 text-[10px] sm:text-xs text-emerald-300">READY · IMAX</span>
             <button id="btn-toggle-ui" class="glass-panel px-3 py-2 rounded-xl text-sm font-medium hover:bg-slate-800/80 transition flex items-center gap-2 text-slate-300">
-                <i class="fa-solid fa-sliders text-blue-400"></i><span class="hidden sm:inline">Controls</span>
+                <i class="fa-solid fa-sliders text-blue-400"></i>
+                <span class="hidden sm:inline">Controls</span>
             </button>
-            <button id="btn-recenter" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white transition"><i class="fa-solid fa-crosshairs"></i></button>
-            <button id="btn-fullscreen" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white transition"><i class="fa-solid fa-expand"></i></button>
+            <button id="btn-recenter" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition" title="Recenter View">
+                <i class="fa-solid fa-crosshairs"></i>
+            </button>
+            <button id="btn-fullscreen" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition" title="Toggle Fullscreen">
+                <i class="fa-solid fa-expand"></i>
+            </button>
         </div>
     </header>
 
-    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-[92%] max-w-2xl glass-panel rounded-2xl p-3 shadow-2xl flex flex-col gap-2 border border-slate-700/50">
+    <!-- Bottom Video Player Controls Bar -->
+    <div id="player-bar" class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-[92%] max-w-2xl glass-panel rounded-2xl p-3 shadow-2xl flex flex-col gap-2 border border-slate-700/50">
+        <!-- Progress Bar -->
         <div class="flex items-center gap-3 px-1">
             <span id="time-current" class="text-xs font-mono text-slate-400 min-w-[38px]">00:00</span>
             <input id="seek-bar" type="range" min="0" max="100" value="0" class="w-full cursor-pointer">
             <span id="time-total" class="text-xs font-mono text-slate-400 min-w-[38px]">00:00</span>
         </div>
+
+        <!-- Action Buttons -->
         <div class="flex items-center justify-between px-1 pt-1">
             <div class="flex items-center gap-2">
-                <button id="btn-play" class="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition shadow-lg shadow-blue-600/30"><i class="fa-solid fa-play text-base"></i></button>
-                <button id="btn-mute" class="w-10 h-10 rounded-xl glass-panel text-slate-300 hover:text-white flex items-center justify-center transition"><i class="fa-solid fa-volume-high"></i></button>
+                <button id="btn-play" class="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition shadow-lg shadow-blue-600/30">
+                    <i class="fa-solid fa-play text-base"></i>
+                </button>
+                <button id="btn-mute" class="w-10 h-10 rounded-xl glass-panel text-slate-300 hover:text-white flex items-center justify-center transition" title="Mute / Unmute">
+                    <i class="fa-solid fa-volume-high"></i>
+                </button>
+                <button id="btn-restart" class="w-10 h-10 rounded-xl glass-panel text-slate-300 hover:text-white flex items-center justify-center transition" title="Restart movie">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
                 <input id="volume-bar" type="range" min="0" max="1" step="0.05" value="0.8" class="w-20 hidden sm:block">
             </div>
+
+            <!-- Preset Video Picker & Custom Upload -->
             <div class="flex items-center gap-2">
                 <label for="video-file-input" class="cursor-pointer glass-panel px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-800 text-slate-300 transition flex items-center gap-2 border border-blue-500/30">
-                    <i class="fa-solid fa-upload text-blue-400"></i><span class="hidden sm:inline">Upload Video</span>
+                    <i class="fa-solid fa-upload text-blue-400"></i>
+                    <span class="hidden sm:inline">Upload Video</span>
                 </label>
                 <input type="file" id="video-file-input" accept="video/*" class="hidden">
-                <select id="sample-video-select" class="glass-panel text-xs rounded-xl px-2.5 py-2 text-slate-200 bg-slate-900/90 border border-slate-700">
-                    <option value="sample1">Sample 1: Tears of Steel</option>
-                    <option value="sample2">Sample 2: Sintel</option>
-                </select>
+
+                <button id="btn-fit-bottom" type="button" title="Fit screen" aria-label="Fit screen" class="w-10 h-10 glass-panel rounded-xl border border-blue-500/30 text-blue-300 hover:text-white hover:bg-slate-800 flex items-center justify-center transition">
+                    <i class="fa-solid fa-expand" aria-hidden="true"></i>
+                </button>
+                <button id="btn-rotate-screen" type="button" title="Rotate to landscape" aria-label="Rotate screen orientation" aria-pressed="false" class="w-10 h-10 glass-panel rounded-xl border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-slate-800 flex items-center justify-center transition">
+                    <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
     </div>
 
+    <!-- Side Settings Control Panel -->
     <aside id="controls-panel" class="absolute top-20 right-4 z-20 w-80 max-h-[calc(100vh-120px)] glass-panel rounded-2xl p-5 overflow-y-auto custom-scrollbar flex flex-col gap-5 border border-slate-700/60 transition-all duration-300 transform translate-x-0">
+        
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h2 class="font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-sliders text-blue-400"></i> Settings & Engine</h2>
-            <button id="btn-close-panel" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="font-bold text-sm tracking-wide text-white flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-blue-400"></i> Theater Configuration
+            </h2>
+            <button id="btn-close-panel" class="text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         </div>
-        <div class="flex flex-col gap-2">
-            <div class="flex justify-between items-center text-xs"><span class="font-medium text-blue-300">Depth Displace Factor</span><span id="val-depth" class="font-mono text-blue-400">0.6x</span></div>
-            <input id="slider-depth" type="range" min="0" max="2.0" step="0.05" value="0.6">
+
+        <!-- Advanced IMAX Depth & Pop-Out Section -->
+        <div class="flex flex-col gap-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-cubes-stacked text-indigo-400"></i> Advanced IMAX Depth
+                </p>
+                <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/40">3D Engine</span>
+            </div>
+
+            <!-- Depth Mode -->
+            <div class="flex flex-col gap-1">
+                <label for="select-depth-mode" class="text-[11px] text-slate-300 font-medium">Depth Mode</label>
+                <select id="select-depth-mode" class="glass-panel text-xs rounded-xl px-2.5 py-2 text-slate-200 bg-slate-900/90 border border-indigo-500/40 focus:outline-none">
+                    <option value="off">Off · Flat Standard Video</option>
+                    <option value="parallax" selected>Parallax · Dynamic Mesh Depth</option>
+                    <option value="depthMap">Luma Depth · Live Dynamic Analysis</option>
+                </select>
+                <p class="text-[9px] text-slate-400 leading-tight">Luma depth estimates foreground depth in realtime via contrast analysis.</p>
+            </div>
+
+            <!-- Depth Strength -->
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs">
+                    <span class="text-[11px] text-slate-300">Depth Displacement Strength</span>
+                    <span id="val-depth-strength" class="font-mono text-indigo-400">0.45</span>
+                </div>
+                <input id="slider-depth-strength" type="range" min="0" max="1.2" step="0.05" value="0.45">
+            </div>
+
+            <!-- Pop-Out Effects Toggle & Distance -->
+            <div class="flex flex-col gap-2 border-t border-indigo-500/20 pt-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-slate-200 font-medium">3D Pop-Out System</span>
+                    <button id="btn-popout-toggle" aria-pressed="true" class="glass-panel rounded-lg px-2.5 py-1 text-xs font-semibold text-indigo-300 border border-indigo-500/50 bg-indigo-600/20">ON</button>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-[11px] text-slate-300">Pop-Out Distance</span>
+                    <span id="val-popout-dist" class="font-mono text-indigo-400">2.5m</span>
+                </div>
+                <input id="slider-popout-dist" type="range" min="0.5" max="5.0" step="0.25" value="2.5">
+            </div>
+
+            <!-- Demo Pop-out Objects Overlay -->
+            <div class="flex items-center justify-between border-t border-indigo-500/20 pt-2">
+                <div>
+                    <span class="text-xs text-slate-200 font-medium">3D Demo Objects</span>
+                    <p class="text-[9px] text-slate-400">Procedural foreground pop-out elements</p>
+                </div>
+                <button id="btn-demo-mode" aria-pressed="false" class="glass-panel rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-400 border border-slate-700">OFF</button>
+            </div>
+
+            <!-- Particles & Atmosphere -->
+            <div class="flex flex-col gap-2 border-t border-indigo-500/20 pt-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-slate-200 font-medium">Cinematic Floating Dust</span>
+                    <button id="btn-particles-toggle" aria-pressed="true" class="glass-panel rounded-lg px-2.5 py-1 text-xs font-semibold text-indigo-300 border border-indigo-500/50 bg-indigo-600/20">ON</button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-slate-200 font-medium">Projector Light Rays</span>
+                    <button id="btn-rays-toggle" aria-pressed="true" class="glass-panel rounded-lg px-2.5 py-1 text-xs font-semibold text-indigo-300 border border-indigo-500/50 bg-indigo-600/20">ON</button>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-slate-200 font-medium">Screen Rim Glow</span>
+                    <button id="btn-glow-toggle" aria-pressed="true" class="glass-panel rounded-lg px-2.5 py-1 text-xs font-semibold text-indigo-300 border border-indigo-500/50 bg-indigo-600/20">ON</button>
+                </div>
+            </div>
+
+            <button id="btn-reset-depth" class="glass-panel rounded-lg py-1.5 text-xs text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/20 transition text-center mt-1">
+                <i class="fa-solid fa-rotate-left"></i> Reset Depth Settings
+            </button>
         </div>
+
+        <!-- 1. Screen Aspect Ratio Selector -->
         <div class="flex flex-col gap-2">
-            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Depth Anti-Flicker Smooth</span><span id="val-smooth" class="font-mono text-blue-400">88%</span></div>
-            <input id="slider-smooth" type="range" min="0.02" max="0.5" step="0.02" value="0.12">
+            <label class="text-xs font-medium text-slate-400">IMAX Aspect Ratio</label>
+            <div class="grid grid-cols-2 gap-2">
+                <button data-ratio="1.43" class="btn-aspect glass-panel py-2 px-3 rounded-xl text-xs font-semibold text-center hover:border-blue-500 border border-blue-500 bg-blue-600/20 text-blue-400 transition">
+                    1.43:1 <span class="block text-[10px] font-normal text-slate-400">Grand IMAX</span>
+                </button>
+                <button data-ratio="1.90" class="btn-aspect glass-panel py-2 px-3 rounded-xl text-xs font-semibold text-center hover:border-blue-500 border border-transparent text-slate-300 transition">
+                    1.90:1 <span class="block text-[10px] font-normal text-slate-400">Digital IMAX</span>
+                </button>
+            </div>
         </div>
-        <div class="flex flex-col gap-2">
-            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Screen Curvature Arc</span><span id="val-curvature" class="font-mono text-blue-400">0.35</span></div>
-            <input id="slider-curvature" type="range" min="0" max="0.8" step="0.05" value="0.35">
+
+        <!-- ScreenX Mode -->
+        <div class="flex flex-col gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-white">Cinema Projection Mode</p>
+                    <p id="mode-description" class="text-[10px] text-slate-400">IMAX Only</p>
+                </div>
+                <div class="flex gap-1.5 flex-wrap justify-end">
+                    <button id="btn-edge-fit" aria-pressed="false" class="glass-panel rounded-lg px-3 py-2 text-xs font-semibold text-slate-300">EDGE FIT</button>
+                    <button id="btn-screenx" aria-pressed="false" class="glass-panel rounded-lg px-3 py-2 text-xs font-semibold text-slate-300">IMAX ONLY</button>
+                </div>
+            </div>
+            <p class="text-[10px] leading-relaxed text-slate-500">Best with panoramic footage. Regular videos are cropped into three sections.</p>
         </div>
+
+        <!-- Continuous viewer-relative curvature control -->
+        <div class="flex flex-col gap-2 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
+            <div class="flex items-center justify-between gap-2">
+                <div>
+                    <p class="text-xs font-semibold text-white">Screen Curvature</p>
+                    <p class="text-[10px] text-slate-400">Viewer/seat-relative shape control</p>
+                </div>
+                <span id="val-curvature" class="font-mono text-blue-400 text-xs">Concave · Default</span>
+            </div>
+            <input id="slider-curvature" aria-label="Screen curvature from convex through flat to concave" type="range" min="-0.8" max="0.8" step="0.01" value="0.35">
+            <div class="flex justify-between text-[10px] text-slate-400"><span>Convex</span><span>Flat</span><span>Concave</span></div>
+        </div>
+
+        <!-- 3. Screen Height & Size -->
         <div class="flex flex-col gap-2">
-            <label class="text-xs font-medium text-slate-400">Seating Position</label>
+            <div class="flex justify-between items-center text-xs">
+                <span class="font-medium text-slate-400">Screen Scale</span>
+                <span id="val-scale" class="font-mono text-blue-400">100%</span>
+            </div>
+            <input id="slider-scale" type="range" min="0.7" max="1.5" step="0.05" value="1.0">
+                </div>
+
+        <!-- 4. Camera Seating / FOV Distance -->
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-medium text-slate-400">Seating Position Preset</label>
             <div class="grid grid-cols-3 gap-1.5">
                 <button id="btn-seat-front" class="glass-panel py-1.5 rounded-lg text-xs hover:bg-slate-800 text-slate-300">Front</button>
                 <button id="btn-seat-center" class="glass-panel py-1.5 rounded-lg text-xs bg-blue-600/30 border border-blue-500 text-blue-300 font-semibold">Center</button>
                 <button id="btn-seat-back" class="glass-panel py-1.5 rounded-lg text-xs hover:bg-slate-800 text-slate-300">Back</button>
             </div>
         </div>
+
         <div class="flex flex-col gap-2">
-            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Field of View (FOV)</span><span id="val-fov" class="font-mono text-blue-400">65°</span></div>
+            <label class="text-xs font-medium text-slate-400">Viewing Angle</label>
+            <div class="grid grid-cols-3 gap-1.5">
+                <button id="btn-view-front" class="glass-panel py-1.5 rounded-lg text-xs text-slate-300">Front</button>
+                <button id="btn-view-left" class="glass-panel py-1.5 rounded-lg text-xs text-slate-300">Left</button>
+                <button id="btn-view-right" class="glass-panel py-1.5 rounded-lg text-xs text-slate-300">Right</button>
+            </div>
+        </div>
+
+        <!-- 5. Camera FOV Slider -->
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs">
+                <span class="font-medium text-slate-400">Field of View (FOV)</span>
+                <span id="val-fov" class="font-mono text-blue-400">65°</span>
+            </div>
             <input id="slider-fov" type="range" min="45" max="95" step="1" value="65">
         </div>
+
+        <!-- 6. Ambient Light Intensity -->
         <div class="flex flex-col gap-2">
-            <div class="flex justify-between items-center text-xs"><span class="font-medium text-slate-400">Ambilight Ambient Glow</span><span id="val-light" class="font-mono text-blue-400">80%</span></div>
+            <div class="flex justify-between items-center text-xs">
+                <span class="font-medium text-slate-400">Dynamic Ambilight Intensity</span>
+                <span id="val-light" class="font-mono text-blue-400">80%</span>
+            </div>
             <input id="slider-light" type="range" min="0" max="2" step="0.1" value="0.8">
         </div>
+
+        <!-- Side-wall brightness -->
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs">
+                <span class="font-medium text-slate-400">Side-Wall Glow</span>
+                <span id="val-side-light" class="font-mono text-blue-400">35%</span>
+            </div>
+            <input id="slider-side-light" type="range" min="0" max="1.5" step="0.05" value="0.35">
+        </div>
+
+        <!-- 7. Theater Lighting Mode -->
+        <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs">
+                <span class="font-medium text-slate-400">Theater Atmosphere</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-theme-dark" class="glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium">Dark Cinema</button>
+                <button id="btn-theme-glow" class="glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white">Full Ambilight</button>
+            </div>
+        </div>
+
+        <!-- Graphics quality selector -->
+        <div class="flex flex-col gap-2">
+            <label class="text-xs font-medium text-slate-400" for="select-quality">Graphics Quality</label>
+            <select id="select-quality" class="glass-panel text-xs rounded-xl px-3 py-2.5 text-slate-200 bg-slate-900/90 border border-slate-700 focus:outline-none focus:border-blue-500">
+                <option value="low">Low · smoother on older phones</option>
+                <option value="medium" selected>Medium · balanced</option>
+                <option value="high">High · sharper rendering</option>
+            </select>
+        </div>
+
+        <button id="btn-save-settings" class="glass-panel rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-200 border border-cyan-500/40 hover:border-cyan-400 hover:bg-cyan-500/10 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-floppy-disk"></i> Save Settings
+        </button>
+
+        <button id="btn-reset-settings" class="glass-panel rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-200 border border-slate-600 hover:border-blue-500 hover:bg-blue-500/10 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-rotate"></i> Reset Cinema Settings
+        </button>
+
     </aside>
 
+    <!-- Main JavaScript Simulator Engine -->
     <script>
-        const SAMPLES = { sample1: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4', sample2: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4' };
-        const state = { aspectRatio: 1.43, curvature: 0.35, scale: 1.0, fov: 65, depthIntensity: 0.6, smoothFactor: 0.12, lightIntensity: 0.8, curDistance: 22 };
-        const W = 128, H = 72;
-        let scene, camera, renderer, controls, screenMesh, screenMaterial, videoTexture, spotLight;
-        let rawDepthArray = new Float32Array(W * H), smoothedDepthArray = new Float32Array(W * H), byteDepthArray = new Uint8Array(W * H), depthDataTexture;
+        // Sample Video Sources
+        const SAMPLES = {
+            sample1: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+            sample2: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4'
+        };
+
+        // Simulator State
+        const state = {
+            aspectRatio: 1.43,   // 1.43:1 (IMAX GT) or 1.90:1 (Digital)
+            curvature: 0.35,     // Viewer-relative: concave center farther away, edges wrap toward seats
+            sideWallIntensity: 0.35,
+            scale: 1.0,          // Screen scale multiplier
+            fov: 65,             // Camera Field of View
+            lightIntensity: 0.8, // Dynamic light intensity multiplier
+            themeMode: 'dark',   // 'dark' or 'glow'
+            curDistance: 22,     // Camera Z distance
+            seatEyeY: -0.8,      // Eye height follows the selected auditorium row
+            seatPreset: 'center',
+            screenX: false,
+            screenShape: 'concave',
+            quality: 'medium',
+
+            // Advanced Depth & Cinematic FX Extensions
+            depthMode: 'parallax', // 'off', 'parallax', 'depthMap'
+            depthStrength: 0.45,
+            popoutEnabled: true,
+            popoutDistance: 2.5,
+            demoObjects: false,
+            particlesEnabled: true,
+            raysEnabled: true,
+            glowEnabled: true,
+            edgeFit: false
+        };
+
+        // Three.js Core Variables
+        let scene, camera, renderer, controls;
+        let screenMesh, screenGeometry, screenMaterial, screenFrameMesh;
+        let screenXGroup, screenXMaterials = [];
+        let wallGlowLeft, wallGlowRight, aisleLights = [];
+        let frameCounter = 0;
+        let currentObjectUrl = null;
+        let videoTexture, ambientLight, spotLight;
+        let theaterRoom, wallMaterial, floorMaterial;
+        let preFitCamera = null;
+
+        // Visual Effects Objects
+        let particleSystem = null, lightRayGroup = null, popoutGroup = null, screenRimGlowMesh = null;
+        let depthDataArray = null;
+
+        // Video & Canvas Elements
         const video = document.getElementById('imax-video');
+        const analysisCanvas = document.getElementById('analysis-canvas');
+        const analysisCtx = analysisCanvas.getContext('2d', { willReadFrequently: true });
         const depthCanvas = document.getElementById('depth-canvas');
         const depthCtx = depthCanvas.getContext('2d', { willReadFrequently: true });
 
-        window.addEventListener('DOMContentLoaded', () => { initThreeJS(); initTheaterEnvironment(); createIMAXDepthScreen(); initVideoPlayer(); setupUIEventListeners(); animate(); });
+        // DOM Elements
+        const container = document.getElementById('canvas-container');
+        const btnPlay = document.getElementById('btn-play');
+        const btnMute = document.getElementById('btn-mute');
+        const seekBar = document.getElementById('seek-bar');
+        const volumeBar = document.getElementById('volume-bar');
+        const timeCurrent = document.getElementById('time-current');
+        const timeTotal = document.getElementById('time-total');
+        const videoFileInput = document.getElementById('video-file-input');
+        const controlsPanel = document.getElementById('controls-panel');
 
+        // Persisted user settings are restored before building the scene.
+        restoreSavedSettings();
+
+        // Initialize Application
+        window.addEventListener('DOMContentLoaded', () => {
+            syncSettingsUI();
+            initThreeJS();
+            initTheaterEnvironment();
+            syncThemeUI();
+            createIMAXScreen();
+            initCinematicEffects();
+            initVideoPlayer();
+            setupUIEventListeners();
+            setScreenXMode(state.screenX);
+            applyGraphicsQuality();
+            animate();
+        });
+
+        // --- 1. Three.js Scene Setup ---
         function initThreeJS() {
-            scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x05070c, 0.018);
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x05070c, 0.018);
+
+            // Camera setup
             camera = new THREE.PerspectiveCamera(state.fov, window.innerWidth / window.innerHeight, 0.1, 200);
-            camera.position.set(0, 1.5, state.curDistance);
+            camera.position.set(0, state.seatEyeY, state.curDistance);
+
+            // Renderer setup
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-            renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.shadowMap.enabled = true;
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            const isMobileDevice = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || window.innerWidth < 700;
+            renderer.setPixelRatio(getQualityPixelRatio(isMobileDevice));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.physicallyCorrectLights = false;
+            renderer.shadowMap.enabled = !isMobileDevice;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.1;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // OrbitControls for interactive viewing angle
             controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxPolarAngle = Math.PI / 2 + 0.05; controls.minDistance = 8; controls.maxDistance = 45; controls.target.set(0, 2, 0);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.05; // Prevent going beneath floor
+            controls.minDistance = 8;
+            controls.maxDistance = 45;
+            controls.target.set(0, 5, 0);
+            controls.addEventListener('change', () => {
+                if (camera.position.z < 3) {
+                    camera.position.z = 3;
+                    camera.lookAt(controls.target);
+                }
+                updateDepthMeshDisplacement();
+            });
+
+            // Resize listener
             window.addEventListener('resize', onWindowResize);
+            window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 150));
         }
 
+        // --- 2. Theater Room Geometry & Lighting ---
         function initTheaterEnvironment() {
-            scene.add(new THREE.AmbientLight(0x1a202c, 0.4));
-            spotLight = new THREE.PointLight(0x3b82f6, 1.2, 50, 1.5); spotLight.position.set(0, 5, 2); scene.add(spotLight);
-            const sideGlowLeft = new THREE.PointLight(0x3b82f6, 0.45, 34); sideGlowLeft.position.set(-18, 5, 5); scene.add(sideGlowLeft);
-            const sideGlowRight = new THREE.PointLight(0x3b82f6, 0.45, 34); sideGlowRight.position.set(18, 5, 5); scene.add(sideGlowRight);
-            window.ambilightLights = [sideGlowLeft, sideGlowRight];
-            const wallMat = new THREE.MeshStandardMaterial({ color: 0x0c1017, roughness: 0.85 }), floorMat = new THREE.MeshStandardMaterial({ color: 0x070a0f, roughness: 0.6 });
-            const backWall = new THREE.Mesh(new THREE.PlaneGeometry(60, 35), wallMat); backWall.position.set(0, 12.5, -5); scene.add(backWall);
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 70), floorMat); floor.rotation.x = -Math.PI / 2; floor.position.set(0, -5, 30); floor.receiveShadow = true; scene.add(floor);
-            const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(70, 35), wallMat); leftWall.rotation.y = Math.PI / 2; leftWall.position.set(-30, 12.5, 30); scene.add(leftWall);
-            const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(70, 35), wallMat); rightWall.rotation.y = -Math.PI / 2; rightWall.position.set(30, 12.5, 30); scene.add(rightWall);
+            // Ambient Base Light
+            ambientLight = new THREE.AmbientLight(0x1a202c, 0.4);
+            scene.add(ambientLight);
+
+            // Screen Dynamic Glow Light (Spotlight projecting from screen onto room)
+            spotLight = new THREE.PointLight(0x3b82f6, 1.2, 50, 1.5);
+            spotLight.position.set(0, 5, 2);
+            spotLight.castShadow = true;
+            scene.add(spotLight);
+
+            // Additional Subtle Overhead Light
+            const topLight = new THREE.DirectionalLight(0x1e293b, 0.5);
+            topLight.position.set(0, 20, 10);
+            scene.add(topLight);
+
+            // Theater Materials
+            wallMaterial = new THREE.MeshStandardMaterial({
+                color: 0x0c1017,
+                roughness: 0.85,
+                metalness: 0.1
+            });
+
+            floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x070a0f,
+                roughness: 0.6,
+                metalness: 0.2
+            });
+
+            // Create Theater Room Box (Large Enclosure)
+            const roomWidth = 60;
+            const roomHeight = 35;
+            const roomDepth = 70;
+
+            // Back Wall (Behind Screen)
+            const backWallGeo = new THREE.PlaneGeometry(roomWidth, roomHeight);
+            const backWall = new THREE.Mesh(backWallGeo, wallMaterial);
+            backWall.position.set(0, roomHeight / 2 - 5, -5);
+            scene.add(backWall);
+
+            // Floor
+            const floorGeo = new THREE.PlaneGeometry(roomWidth, roomDepth);
+            const floor = new THREE.Mesh(floorGeo, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.set(0, -5, roomDepth / 2 - 5);
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Side Walls (Left and Right)
+            const sideWallGeo = new THREE.PlaneGeometry(roomDepth, roomHeight);
+            
+            const leftWall = new THREE.Mesh(sideWallGeo, wallMaterial);
+            leftWall.rotation.y = Math.PI / 2;
+            leftWall.position.set(-roomWidth / 2, roomHeight / 2 - 5, roomDepth / 2 - 5);
+            scene.add(leftWall);
+
+            const rightWall = new THREE.Mesh(sideWallGeo, wallMaterial);
+            rightWall.rotation.y = -Math.PI / 2;
+            rightWall.position.set(roomWidth / 2, roomHeight / 2 - 5, roomDepth / 2 - 5);
+            scene.add(rightWall);
+
+            // Acoustic wall panels, ceiling canopy and aisle guidance lights
+            const panelMaterial = new THREE.MeshStandardMaterial({ color: 0x111a28, roughness: 0.92, metalness: 0.05 });
+            for (let i = 0; i < 14; i++) {
+                const panelGeo = new THREE.BoxGeometry(0.12, 18, 0.18);
+                const x = -23 + i * 3.55;
+                const panel = new THREE.Mesh(panelGeo, panelMaterial);
+                panel.position.set(x, 12.8, -4.72);
+                scene.add(panel);
+            }
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth), new THREE.MeshStandardMaterial({ color: 0x090d15, roughness: 1, side: THREE.DoubleSide }));
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.set(0, 30, roomDepth / 2 - 5);
+            scene.add(ceiling);
+            const aisleGlowMat = new THREE.MeshBasicMaterial({ color: 0x1d4ed8 });
+            for (let side of [-1, 1]) {
+                for (let r = 0; r < 12; r++) {
+                    const light = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 1.2), aisleGlowMat.clone());
+                    light.position.set(side * 18, -3.3 + r * 0.25, 10 + r * 4.2);
+                    scene.add(light); aisleLights.push(light);
+                }
+            }
+            wallGlowLeft = new THREE.PointLight(0x2563eb, 0.4, 24, 2);
+            wallGlowRight = new THREE.PointLight(0x2563eb, 0.4, 24, 2);
+            wallGlowLeft.position.set(-20, 8, 4); wallGlowRight.position.set(20, 8, 4);
+            scene.add(wallGlowLeft, wallGlowRight);
+
+            // Theater Seating Rows
             createTheaterSeats();
         }
 
         function createTheaterSeats() {
+            const seatMaterial = new THREE.MeshStandardMaterial({ color: 0x111622, roughness: 0.9 });
             const seatGroup = new THREE.Group();
-            const upholstery = new THREE.MeshStandardMaterial({ color: 0x241018, roughness: 0.82 }), cushionMaterial = new THREE.MeshStandardMaterial({ color: 0x3b1824, roughness: 0.78 }), cupMaterial = new THREE.MeshStandardMaterial({ color: 0x090c12, roughness: 0.3 });
-            const rows = 5, seatsPerRow = 10, seatWidth = 1.65, seatDepth = 1.45, rowSpacing = 3.0;
-            function addSeat(x, y, z, facesPositiveZ) {
-                const direction = facesPositiveZ ? 1 : -1;
-                const seat = new THREE.Mesh(new THREE.BoxGeometry(seatWidth, 0.42, seatDepth), cushionMaterial); seat.position.set(x, y, z); seatGroup.add(seat);
-                const back = new THREE.Mesh(new THREE.BoxGeometry(seatWidth, 1.55, 0.34), upholstery); back.position.set(x, y + 0.78, z - direction * (seatDepth * 0.46)); seatGroup.add(back);
-                const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.48, 0.38), cushionMaterial); headrest.position.set(x, y + 1.63, z - direction * (seatDepth * 0.46)); seatGroup.add(headrest);
-                for (const side of [-1, 1]) {
-                    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.34, 1.05), upholstery); arm.position.set(x + side * (seatWidth / 2 + 0.1), y + 0.28, z); seatGroup.add(arm);
-                    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 12), cupMaterial); cup.rotation.x = Math.PI / 2; cup.position.set(x + side * (seatWidth / 2 + 0.1), y + 0.47, z + 0.18); seatGroup.add(cup);
+
+            const rows = 6;
+            const seatsPerRow = 12;
+
+            for (let r = 0; r < rows; r++) {
+                const zPos = 12 + r * 4;
+                const yPos = -4 + r * 0.8;
+
+                for (let s = 0; s < seatsPerRow; s++) {
+                    const xPos = (s - seatsPerRow / 2) * 2.8 + 1.4;
+                    const seatGeo = new THREE.BoxGeometry(1.8, 0.4, 1.6);
+                    const seat = new THREE.Mesh(seatGeo, seatMaterial);
+                    seat.position.set(xPos, yPos, zPos);
+                    
+                    const backGeo = new THREE.BoxGeometry(1.8, 1.4, 0.3);
+                    const back = new THREE.Mesh(backGeo, seatMaterial);
+                    back.position.set(xPos, yPos + 0.7, zPos + 0.7);
+
+                    seatGroup.add(seat);
+                    seatGroup.add(back);
                 }
-            }
-            for (let r = 0; r < rows; r++) {
-                const z = 9 + r * rowSpacing, y = -4 + r * 0.48;
-                for (let s = 0; s < seatsPerRow; s++) addSeat((s - (seatsPerRow - 1) / 2) * 2.0, y, z, true);
-            }
-            for (let r = 0; r < rows; r++) {
-                const z = -9 - r * rowSpacing, y = -4 + r * 0.48;
-                for (let s = 0; s < seatsPerRow; s++) addSeat((s - (seatsPerRow - 1) / 2) * 2.0, y, z, false);
             }
             scene.add(seatGroup);
         }
 
-        function createIMAXDepthScreen() {
-            if (screenMesh) scene.remove(screenMesh);
-            videoTexture = new THREE.VideoTexture(video); videoTexture.minFilter = THREE.LinearFilter; videoTexture.magFilter = THREE.LinearFilter;
-            depthDataTexture = new THREE.DataTexture(byteDepthArray, W, H, THREE.RedFormat, THREE.UnsignedByteType); depthDataTexture.minFilter = THREE.LinearFilter; depthDataTexture.magFilter = THREE.LinearFilter; depthDataTexture.needsUpdate = true;
-            const screenHeight = 14 * state.scale, screenWidth = screenHeight * state.aspectRatio;
-            const geometry = new THREE.PlaneGeometry(screenWidth, screenHeight, 80, 45);
-            const vertexShader = `
-                uniform sampler2D depthTex; uniform float depthIntensity; uniform float curvature; uniform float screenWidth; varying vec2 vUv; varying float vDepth;
-                void main() {
-                    vUv = uv; float rawD = texture2D(depthTex, uv).r; float clampedDepth = clamp(rawD, 0.0, 1.0); vDepth = clampedDepth;
-                    vec3 newPosition = position; newPosition.z -= clampedDepth * depthIntensity * 1.0;
-                    if(curvature > 0.01) { float radius = screenWidth / (2.0 * sin(curvature)); newPosition.z -= radius * (1.0 - cos(newPosition.x / radius)); }
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
-                }
-            `;
-            const fragmentShader = `
-                uniform sampler2D videoTex; varying vec2 vUv; varying float vDepth;
-                void main() { vec4 color = texture2D(videoTex, vUv); color.rgb += vec3(vDepth * 0.02, vDepth * 0.04, vDepth * 0.08); gl_FragColor = color; }
-            `;
-            screenMaterial = new THREE.ShaderMaterial({ uniforms: { videoTex: { value: videoTexture }, depthTex: { value: depthDataTexture }, depthIntensity: { value: state.depthIntensity }, curvature: { value: state.curvature }, screenWidth: { value: screenWidth } }, vertexShader: vertexShader, fragmentShader: fragmentShader, side: THREE.DoubleSide });
-            screenMesh = new THREE.Mesh(geometry, screenMaterial); screenMesh.position.set(0, screenHeight / 2 - 2, 0); scene.add(screenMesh);
-        }
-
-        function initVideoPlayer() {
-            video.src = SAMPLES.sample1; const btnPlay = document.getElementById('btn-play');
-            btnPlay.addEventListener('click', () => { if (video.paused) { video.play(); btnPlay.innerHTML = '<i class="fa-solid fa-pause text-base"></i>'; } else { video.pause(); btnPlay.innerHTML = '<i class="fa-solid fa-play text-base"></i>'; } });
-            video.addEventListener('timeupdate', () => { if (!isNaN(video.duration)) { document.getElementById('seek-bar').value = (video.currentTime / video.duration) * 100; document.getElementById('time-current').textContent = formatTime(video.currentTime); document.getElementById('time-total').textContent = formatTime(video.duration); } });
-            document.getElementById('seek-bar').addEventListener('input', (e) => { video.currentTime = (e.target.value / 100) * video.duration; });
-            document.getElementById('sample-video-select').addEventListener('change', (e) => { video.src = SAMPLES[e.target.value]; video.play(); });
-            document.getElementById('video-file-input').addEventListener('change', (e) => { const file = e.target.files[0]; if (file) { video.src = URL.createObjectURL(file); video.play(); } });
-        }
-
-        function updateSmoothDepthMap() {
-            if (video.paused || video.ended || video.readyState < 2) return;
-            try {
-                depthCtx.drawImage(video, 0, 0, W, H); const frameData = depthCtx.getImageData(0, 0, W, H).data;
-                let rSum = 0, gSum = 0, bSum = 0; const totalPixels = W * H;
-                for (let i = 0; i < totalPixels; i++) { const idx = i * 4; rSum += frameData[idx]; gSum += frameData[idx+1]; bSum += frameData[idx+2]; rawDepthArray[i] = (frameData[idx] * 0.299 + frameData[idx+1] * 0.587 + frameData[idx+2] * 0.114) / 255.0; }
-                const alpha = state.smoothFactor;
-                for (let y = 1; y < H - 1; y++) {
-                    for (let x = 1; x < W - 1; x++) {
-                        const idx = y * W + x;
-                        let blurAvg = (rawDepthArray[idx - W - 1] + rawDepthArray[idx - W] + rawDepthArray[idx - W + 1] + rawDepthArray[idx - 1] + rawDepthArray[idx] + rawDepthArray[idx + 1] + rawDepthArray[idx + W - 1] + rawDepthArray[idx + W] + rawDepthArray[idx + W + 1]) / 9.0;
-                        smoothedDepthArray[idx] += (blurAvg - smoothedDepthArray[idx]) * alpha;
-                        byteDepthArray[idx] = Math.floor(smoothedDepthArray[idx] * 255.0);
+        // --- 3. Advanced Subdivided IMAX Screen & Frame Geometry ---
+        function createIMAXScreen() {
+            if (screenMesh) {
+                scene.remove(screenMesh);
+                if (screenGeometry) screenGeometry.dispose();
+                if (screenMaterial) screenMaterial.dispose();
+            }
+            if (screenFrameMesh) {
+                scene.remove(screenFrameMesh);
+                if (screenFrameMesh.geometry) screenFrameMesh.geometry.dispose();
+            }
+            if (screenRimGlowMesh) {
+                scene.remove(screenRimGlowMesh);
+                if (screenRimGlowMesh.geometry) screenRimGlowMesh.geometry.dispose();
+            }
+            if (videoTexture) videoTexture.dispose();
+            if (screenXGroup) {
+                scene.remove(screenXGroup);
+                screenXGroup.traverse(obj => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                        mats.forEach(m => { if (m.map && m.map !== videoTexture) m.map.dispose(); m.dispose(); });
                     }
+                });
+            }
+            screenXMaterials = [];
+            const screenHeight = 14 * state.scale;
+            const screenWidth = screenHeight * state.aspectRatio;
+
+            const segmentsX = 120;
+            const segmentsY = 60;
+            screenGeometry = new THREE.PlaneGeometry(screenWidth, screenHeight, segmentsX, segmentsY);
+            
+            applyScreenCurvatureGeometry(screenGeometry, screenWidth, state.curvature);
+
+            videoTexture = new THREE.VideoTexture(video);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+            videoTexture.format = THREE.RGBAFormat;
+            videoTexture.colorSpace = THREE.SRGBColorSpace || undefined;
+            videoTexture.generateMipmaps = false;
+            videoTexture.wrapS = THREE.ClampToEdgeWrapping;
+            if (state.screenX) { videoTexture.repeat.set(0.5, 1); videoTexture.offset.set(0.25, 0); }
+            else { videoTexture.repeat.set(1, 1); videoTexture.offset.set(0, 0); }
+
+            screenMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
+            screenMesh = new THREE.Mesh(screenGeometry, screenMaterial);
+            const centerY = screenHeight / 2 - 2;
+            screenMesh.position.set(0, centerY, 0);
+            scene.add(screenMesh);
+
+            const frameGeo = new THREE.BoxGeometry(screenWidth + 0.6, screenHeight + 0.6, 0.4);
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x05070a, roughness: 0.95 });
+            screenFrameMesh = new THREE.Mesh(frameGeo, frameMat);
+            screenFrameMesh.position.set(0, centerY, -0.25);
+            scene.add(screenFrameMesh);
+
+            const rimGeo = new THREE.PlaneGeometry(screenWidth + 1.2, screenHeight + 1.2);
+            const rimMat = new THREE.MeshBasicMaterial({
+                color: 0x3b82f6,
+                transparent: true,
+                opacity: state.glowEnabled ? 0.35 : 0.0,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending
+            });
+            screenRimGlowMesh = new THREE.Mesh(rimGeo, rimMat);
+            screenRimGlowMesh.position.set(0, centerY, -0.05);
+            scene.add(screenRimGlowMesh);
+
+            if (state.screenX) createScreenXPanels(screenWidth, screenHeight);
+            updateDepthMeshDisplacement();
+            updateStatus();
+        }
+
+        function applyScreenCurvatureGeometry(geometry, width, curvatureVal) {
+            const pos = geometry.attributes.position;
+            const sagitta = Math.abs(curvatureVal) * 3.2;
+            const curveSign = curvatureVal > 0 ? 1 : -1;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const normalizedX = x / (width / 2);
+                const zOffset = sagitta * normalizedX * normalizedX;
+                pos.setZ(i, Math.abs(curvatureVal) < 0.005 ? 0 : curveSign * zOffset);
+            }
+                        geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+        }
+
+        function createScreenXPanels(screenWidth, screenHeight) {
+            screenXGroup = new THREE.Group();
+            const panelWidth = screenWidth * 0.58;
+            const panelHeight = screenHeight * 0.90;
+            const angle = 0.58;
+            const centerY = screenHeight / 2 - 2;
+            [-1, 1].forEach(side => {
+                const geo = new THREE.PlaneGeometry(panelWidth, panelHeight, 32, 1);
+                const pos = geo.attributes.position;
+                const panelCurveDirection = state.curvature > 0 ? 1 : -1;
+                const panelCurveStrength = Math.abs(state.curvature) * 0.34;
+                for (let i = 0; i < pos.count; i++) {
+                    const x = pos.getX(i);
+                    const normalizedX = x / (panelWidth / 2);
+                    pos.setZ(i, Math.abs(state.curvature) < 0.005 ? 0 : panelCurveDirection * panelCurveStrength * normalizedX * normalizedX);
                 }
-                depthDataTexture.needsUpdate = true;
-                const targetColor = new THREE.Color(`rgb(${Math.floor(rSum / totalPixels)}, ${Math.floor(gSum / totalPixels)}, ${Math.floor(bSum / totalPixels)})`);
-                spotLight.color.lerp(targetColor, 0.1); spotLight.intensity = state.lightIntensity * 1.2;
-                if (window.ambilightLights) { window.ambilightLights.forEach(light => { light.color.lerp(targetColor, 0.12); light.intensity = state.lightIntensity * 0.45; }); }
-            } catch (e) {}
+                geo.computeVertexNormals();
+                const tex = videoTexture.clone();
+                tex.needsUpdate = true;
+                tex.repeat.set(0.25, 1);
+                tex.offset.set(side < 0 ? 0 : 0.75, 0);
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false });
+                screenXMaterials.push(mat);
+                const panel = new THREE.Mesh(geo, mat);
+                panel.position.set(side * (screenWidth / 2 + panelWidth * 0.40), centerY, -0.35);
+                panel.rotation.y = side < 0 ? angle : -angle;
+                screenXGroup.add(panel);
+            });
+            scene.add(screenXGroup);
         }
 
+        // --- 4. Advanced Modular Depth & Dynamic Parallax System ---
+        function updateDepthMeshDisplacement() {
+            if (!screenGeometry || !screenGeometry.attributes.position) return;
+
+            const pos = screenGeometry.attributes.position;
+            const width = 14 * state.scale * state.aspectRatio;
+            const sagitta = Math.abs(state.curvature) * 3.2;
+            const curveSign = state.curvature > 0 ? 1 : -1;
+
+            const camX = camera ? camera.position.x : 0;
+            const parallaxFactor = (camX / 30) * state.depthStrength;
+
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const normalizedX = x / (width / 2);
+                let baseZ = Math.abs(state.curvature) < 0.005 ? 0 : curveSign * sagitta * normalizedX * normalizedX;
+                
+                let depthVal = 0;
+
+                if (state.depthMode === 'parallax') {
+                    depthVal = Math.sin(normalizedX * Math.PI) * parallaxFactor * 1.5;
+                } else if (state.depthMode === 'depthMap' && depthDataArray) {
+                    const colIdx = Math.floor(((x / (width / 2)) * 0.5 + 0.5) * 64);
+                    const rowIdx = Math.floor((1 - (pos.getY(i) / (14 * state.scale) + 0.5)) * 36);
+                    const arrayIdx = Math.min(Math.max(rowIdx * 64 + colIdx, 0), depthDataArray.length - 1);
+                    const luma = depthDataArray[arrayIdx] || 0;
+                    depthVal = (luma / 255) * state.depthStrength * 1.8;
+                }
+
+                pos.setZ(i, baseZ + depthVal);
+            }
+
+            screenGeometry.computeVertexNormals();
+            screenGeometry.attributes.position.needsUpdate = true;
+        }
+
+        function analyzeVideoDepthMap() {
+            if (state.depthMode !== 'depthMap' || video.paused || video.readyState < 2) return;
+            try {
+                depthCtx.drawImage(video, 0, 0, depthCanvas.width, depthCanvas.height);
+                const imgData = depthCtx.getImageData(0, 0, depthCanvas.width, depthCanvas.height).data;
+                if (!depthDataArray || depthDataArray.length !== depthCanvas.width * depthCanvas.height) {
+                    depthDataArray = new Uint8Array(depthCanvas.width * depthCanvas.height);
+                }
+                for (let i = 0; i < imgData.length; i += 4) {
+                    const luma = 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
+                    depthDataArray[i / 4] = luma;
+                }
+                updateDepthMeshDisplacement();
+            } catch (e) { /* Fallback */ }
+        }
+
+        // --- 5. Cinematic FX, Floating Dust Particles, Light Rays & Pop-out Engine ---
+        function initCinematicEffects() {
+            const particleCount = 250;
+            const particleGeo = new THREE.BufferGeometry();
+            const particlePos = new Float32Array(particleCount * 3);
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                particlePos[i] = (Math.random() - 0.5) * 45;
+                particlePos[i + 1] = Math.random() * 20 - 2;
+                particlePos[i + 2] = Math.random() * 40 - 5;
+            }
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+            const particleMat = new THREE.PointsMaterial({
+                color: 0x93c5fd,
+                size: 0.15,
+                transparent: true,
+                opacity: 0.45,
+                blending: THREE.AdditiveBlending
+            });
+            particleSystem = new THREE.Points(particleGeo, particleMat);
+            particleSystem.visible = state.particlesEnabled;
+            scene.add(particleSystem);
+
+            lightRayGroup = new THREE.Group();
+            const rayGeo = new THREE.ConeGeometry(18, 40, 16, 1, true);
+            const rayMat = new THREE.MeshBasicMaterial({
+                color: 0x3b82f6,
+                transparent: true,
+                opacity: 0.06,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending
+            });
+            const rayCone = new THREE.Mesh(rayGeo, rayMat);
+            rayCone.rotation.x = Math.PI / 2;
+            rayCone.position.set(0, 12, 18);
+            lightRayGroup.add(rayCone);
+            lightRayGroup.visible = state.raysEnabled;
+            scene.add(lightRayGroup);
+
+            popoutGroup = new THREE.Group();
+            const popMat = new THREE.MeshStandardMaterial({
+                color: 0x60a5fa,
+                roughness: 0.3,
+                metalness: 0.8,
+                emissive: 0x1d4ed8,
+                emissiveIntensity: 0.4
+            });
+
+            for (let i = 0; i < 5; i++) {
+                const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), popMat);
+                mesh.position.set((i - 2) * 3.5, 4 + Math.sin(i) * 1.5, 2);
+                popoutGroup.add(mesh);
+            }
+            popoutGroup.visible = state.popoutEnabled && state.demoObjects;
+            scene.add(popoutGroup);
+        }
+
+        function updateCinematicEffects(time) {
+            if (particleSystem && state.particlesEnabled) {
+                const positions = particleSystem.geometry.attributes.position.array;
+                for (let i = 1; i < positions.length; i += 3) {
+                    positions[i] += Math.sin(time + positions[i - 1]) * 0.005;
+                }
+                particleSystem.geometry.attributes.position.needsUpdate = true;
+            }
+
+            if (popoutGroup && state.popoutEnabled && state.demoObjects) {
+                popoutGroup.children.forEach((obj, idx) => {
+                    obj.rotation.x += 0.01;
+                    obj.rotation.y += 0.015;
+                    const popZ = 1.0 + Math.sin(time * 2 + idx) * (state.popoutDistance * 0.8);
+                    obj.position.z = popZ;
+                });
+            }
+
+            if (screenRimGlowMesh && spotLight) {
+                screenRimGlowMesh.material.color.copy(spotLight.color);
+                screenRimGlowMesh.material.opacity = state.glowEnabled ? (0.2 + spotLight.intensity * 0.12) : 0;
+            }
+            if (lightRayGroup && spotLight && state.raysEnabled) {
+                lightRayGroup.children[0].material.color.copy(spotLight.color);
+            }
+        }
+
+        function setScreenXMode(enabled) {
+            state.screenX = !!enabled;
+            const btn = document.getElementById('btn-screenx');
+            btn.textContent = state.screenX ? 'IMAX + SCREENX' : 'IMAX ONLY';
+            btn.setAttribute('aria-pressed', String(state.screenX));
+            btn.classList.toggle('control-active', state.screenX);
+            document.getElementById('mode-description').textContent = state.screenX ? 'Center + left/right side-wall projection' : 'Center screen projection only';
+            createIMAXScreen();
+        }
+
+        function updateStatus(message) {
+            const pill = document.getElementById('status-pill');
+            if (!pill) return;
+            pill.textContent = message || (state.screenX ? 'READY · IMAX + SCREENX' : 'READY · IMAX ONLY');
+            pill.classList.toggle('text-cyan-300', state.screenX);
+            pill.classList.toggle('text-emerald-300', !state.screenX);
+        }
+
+        // --- 6. Video Player & Ambilight Engine ---
+        function initVideoPlayer() {
+            video.src = SAMPLES.sample1;
+            video.volume = 0.8;
+            video.addEventListener('loadedmetadata', () => {
+                timeTotal.textContent = formatTime(video.duration || 0);
+                seekBar.value = 0;
+                updateStatus('VIDEO READY');
+                if (videoTexture) videoTexture.needsUpdate = true;
+            });
+            video.addEventListener('playing', () => { updatePlayButtonUI(true); updateStatus(state.screenX ? 'PLAYING · IMAX + SCREENX' : 'PLAYING · IMAX ONLY'); });
+            video.addEventListener('pause', () => { updatePlayButtonUI(false); updateStatus(state.screenX ? 'PAUSED · IMAX + SCREENX' : 'PAUSED · IMAX ONLY'); });
+            video.addEventListener('error', () => updateStatus('VIDEO ERROR · TRY UPLOAD'));
+
+            btnPlay.addEventListener('click', togglePlay);
+            video.addEventListener('click', togglePlay);
+            document.getElementById('btn-restart').addEventListener('click', () => {
+                try { video.currentTime = 0; } catch (_) {}
+                video.play().then(() => updatePlayButtonUI(true)).catch(() => updateStatus('RESTARTED · TAP PLAY'));
+            });
+            video.addEventListener('ended', () => updatePlayButtonUI(false));
+
+            video.addEventListener('timeupdate', () => {
+                if (!isNaN(video.duration)) {
+                    const progress = (video.currentTime / video.duration) * 100;
+                    seekBar.value = progress;
+                    timeCurrent.textContent = formatTime(video.currentTime);
+                    timeTotal.textContent = formatTime(video.duration);
+                }
+            });
+
+            seekBar.addEventListener('input', () => {
+                if (Number.isFinite(video.duration) && video.duration > 0) {
+                    const targetTime = (seekBar.value / 100) * video.duration;
+                    video.currentTime = targetTime;
+                }
+            });
+
+            btnMute.addEventListener('click', () => {
+                video.muted = !video.muted;
+                btnMute.innerHTML = video.muted ? 
+                    '<i class="fa-solid fa-volume-xmark text-red-400"></i>' : 
+                    '<i class="fa-solid fa-volume-high"></i>';
+            });
+
+            volumeBar.addEventListener('input', () => {
+                video.volume = volumeBar.value;
+                video.muted = (video.volume === 0);
+            });
+
+            videoFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+                    currentObjectUrl = URL.createObjectURL(file);
+                    video.src = currentObjectUrl;
+                    video.load();
+                    video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
+                }
+            });
+        }
+
+        function togglePlay() {
+            if (video.paused) {
+                video.play().then(() => updatePlayButtonUI(true)).catch(err => console.log("Playback interaction required: ", err));
+            } else {
+                video.pause();
+                updatePlayButtonUI(false);
+            }
+        }
+
+        function updatePlayButtonUI(isPlaying) {
+            btnPlay.innerHTML = isPlaying ? 
+                '<i class="fa-solid fa-pause text-base"></i>' : 
+                '<i class="fa-solid fa-play text-base"></i>';
+        }
+
+        function updateDynamicAmbilight() {
+            frameCounter++;
+            if (frameCounter % 6 !== 0) return;
+            if (video.paused || video.ended || video.readyState < 2) return;
+
+            try {
+                analysisCtx.drawImage(video, 0, 0, analysisCanvas.width, analysisCanvas.height);
+                const frameData = analysisCtx.getImageData(0, 0, analysisCanvas.width, analysisCanvas.height).data;
+
+                let r = 0, g = 0, b = 0;
+                const totalPixels = frameData.length / 4;
+
+                for (let i = 0; i < frameData.length; i += 4) {
+                    r += frameData[i];
+                    g += frameData[i + 1];
+                    b += frameData[i + 2];
+                }
+
+                r = Math.floor(r / totalPixels);
+                g = Math.floor(g / totalPixels);
+                b = Math.floor(b / totalPixels);
+
+                const targetColor = new THREE.Color(`rgb(${r}, ${g}, ${b})`);
+                spotLight.color.lerp(targetColor, 0.1);
+                spotLight.intensity = state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2);
+                if (wallGlowLeft) {
+                    wallGlowLeft.color.lerp(targetColor, 0.08);
+                    wallGlowRight.color.lerp(targetColor, 0.08);
+                    const wallIntensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92);
+                    wallGlowLeft.intensity = wallIntensity;
+                    wallGlowRight.intensity = wallIntensity;
+                }
+                aisleLights.forEach(light => { light.material.color.lerp(targetColor, 0.025); });
+
+            } catch (e) { /* CORS fallback */ }
+        }
+
+        // --- 7. UI Controls & Event Handling ---
         function setupUIEventListeners() {
-            const panel = document.getElementById('controls-panel');
-            document.getElementById('btn-toggle-ui').addEventListener('click', () => panel.classList.toggle('translate-x-full'));
-            document.getElementById('btn-close-panel').addEventListener('click', () => panel.classList.add('translate-x-full'));
-            document.getElementById('btn-recenter').addEventListener('click', () => { camera.position.set(0, 1.5, state.curDistance); controls.target.set(0, 2, 0); });
-            document.getElementById('btn-fullscreen').addEventListener('click', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else if (document.exitFullscreen) document.exitFullscreen(); });
-            document.getElementById('slider-depth').addEventListener('input', (e) => { state.depthIntensity = parseFloat(e.target.value); document.getElementById('val-depth').textContent = state.depthIntensity.toFixed(2) + 'x'; if(screenMaterial) screenMaterial.uniforms.depthIntensity.value = state.depthIntensity; });
-            document.getElementById('slider-smooth').addEventListener('input', (e) => { state.smoothFactor = parseFloat(e.target.value); document.getElementById('val-smooth').textContent = Math.round((1 - state.smoothFactor) * 100) + '%'; });
-            document.getElementById('slider-curvature').addEventListener('input', (e) => { state.curvature = parseFloat(e.target.value); document.getElementById('val-curvature').textContent = state.curvature.toFixed(2); createIMAXDepthScreen(); });
-            document.getElementById('slider-fov').addEventListener('input', (e) => { state.fov = parseInt(e.target.value); document.getElementById('val-fov').textContent = state.fov + '°'; camera.fov = state.fov; camera.updateProjectionMatrix(); });
-            document.getElementById('slider-light').addEventListener('input', (e) => { state.lightIntensity = parseFloat(e.target.value); document.getElementById('val-light').textContent = Math.round(state.lightIntensity * 100) + '%'; });
-            document.getElementById('btn-seat-front').addEventListener('click', () => setSeat(14, 55));
-            document.getElementById('btn-seat-center').addEventListener('click', () => setSeat(22, 65));
-            document.getElementById('btn-seat-back').addEventListener('click', () => setSeat(32, 75));
+            const btnToggleUI = document.getElementById('btn-toggle-ui');
+            const btnClosePanel = document.getElementById('btn-close-panel');
+
+            btnToggleUI.addEventListener('click', () => {
+                controlsPanel.classList.toggle('translate-x-0');
+                controlsPanel.classList.toggle('translate-x-full');
+            });
+
+            btnClosePanel.addEventListener('click', () => {
+                controlsPanel.classList.add('translate-x-full');
+            });
+
+            document.getElementById('btn-screenx').addEventListener('click', () => { setScreenXMode(!state.screenX); saveSettings(); });
+
+            document.getElementById('select-depth-mode').addEventListener('change', (e) => {
+                state.depthMode = e.target.value;
+                updateDepthMeshDisplacement();
+                saveSettings();
+                updateStatus('DEPTH MODE · ' + state.depthMode.toUpperCase());
+            });
+
+            const sliderDepthStrength = document.getElementById('slider-depth-strength');
+            sliderDepthStrength.addEventListener('input', (e) => {
+                state.depthStrength = parseFloat(e.target.value);
+                document.getElementById('val-depth-strength').textContent = state.depthStrength.toFixed(2);
+                updateDepthMeshDisplacement();
+                saveSettings();
+            });
+
+            const btnPopout = document.getElementById('btn-popout-toggle');
+            btnPopout.addEventListener('click', () => {
+                state.popoutEnabled = !state.popoutEnabled;
+                btnPopout.textContent = state.popoutEnabled ? 'ON' : 'OFF';
+                btnPopout.setAttribute('aria-pressed', String(state.popoutEnabled));
+                btnPopout.classList.toggle('bg-indigo-600/20', state.popoutEnabled);
+                if (popoutGroup) popoutGroup.visible = state.popoutEnabled && state.demoObjects;
+                saveSettings();
+            });
+
+            const sliderPopoutDist = document.getElementById('slider-popout-dist');
+            sliderPopoutDist.addEventListener('input', (e) => {
+                state.popoutDistance = parseFloat(e.target.value);
+                document.getElementById('val-popout-dist').textContent = `${state.popoutDistance.toFixed(1)}m`;
+                saveSettings();
+            });
+
+            const btnDemoMode = document.getElementById('btn-demo-mode');
+            btnDemoMode.addEventListener('click', () => {
+                state.demoObjects = !state.demoObjects;
+                btnDemoMode.textContent = state.demoObjects ? 'ON' : 'OFF';
+                btnDemoMode.setAttribute('aria-pressed', String(state.demoObjects));
+                btnDemoMode.classList.toggle('text-indigo-300', state.demoObjects);
+                btnDemoMode.classList.toggle('border-indigo-500/50', state.demoObjects);
+                btnDemoMode.classList.toggle('bg-indigo-600/20', state.demoObjects);
+                if (popoutGroup) popoutGroup.visible = state.popoutEnabled && state.demoObjects;
+                saveSettings();
+            });
+
+            const btnParticles = document.getElementById('btn-particles-toggle');
+            btnParticles.addEventListener('click', () => {
+                state.particlesEnabled = !state.particlesEnabled;
+                btnParticles.textContent = state.particlesEnabled ? 'ON' : 'OFF';
+                btnParticles.setAttribute('aria-pressed', String(state.particlesEnabled));
+                btnParticles.classList.toggle('bg-indigo-600/20', state.particlesEnabled);
+                if (particleSystem) particleSystem.visible = state.particlesEnabled;
+                saveSettings();
+            });
+
+            const btnRays = document.getElementById('btn-rays-toggle');
+            btnRays.addEventListener('click', () => {
+                state.raysEnabled = !state.raysEnabled;
+                btnRays.textContent = state.raysEnabled ? 'ON' : 'OFF';
+                btnRays.setAttribute('aria-pressed', String(state.raysEnabled));
+                btnRays.classList.toggle('bg-indigo-600/20', state.raysEnabled);
+                if (lightRayGroup) lightRayGroup.visible = state.raysEnabled;
+                saveSettings();
+            });
+
+            const btnGlow = document.getElementById('btn-glow-toggle');
+            btnGlow.addEventListener('click', () => {
+                state.glowEnabled = !state.glowEnabled;
+                btnGlow.textContent = state.glowEnabled ? 'ON' : 'OFF';
+                btnGlow.setAttribute('aria-pressed', String(state.glowEnabled));
+                btnGlow.classList.toggle('bg-indigo-600/20', state.glowEnabled);
+                saveSettings();
+            });
+
+            document.getElementById('btn-reset-depth').addEventListener('click', () => {
+                state.depthMode = 'parallax';
+                state.depthStrength = 0.45;
+                state.popoutEnabled = true;
+                state.popoutDistance = 2.5;
+                state.demoObjects = false;
+                state.particlesEnabled = true;
+                state.raysEnabled = true;
+                state.glowEnabled = true;
+                document.getElementById('select-depth-mode').value = 'parallax';
+                document.getElementById('slider-depth-strength').value = 0.45;
+                document.getElementById('val-depth-strength').textContent = '0.45';
+                document.getElementById('slider-popout-dist').value = 2.5 ;
+                        document.getElementById('btn-edge-fit').addEventListener('click', () => {
+                state.edgeFit = !state.edgeFit;
+                const fitBtn = document.getElementById('btn-edge-fit');
+                fitBtn.setAttribute('aria-pressed', String(state.edgeFit));
+                fitBtn.classList.toggle('control-active', state.edgeFit);
+                if (state.edgeFit) {
+                    preFitCamera = { position: camera.position.clone(), fov: camera.fov, target: controls.target.clone() };
+                    const screenHeight = 14 * state.scale;
+                    const screenWidth = screenHeight * state.aspectRatio;
+                    const portrait = window.innerHeight >= window.innerWidth;
+                    const margin = portrait ? 1.06 : 1.12;
+                    const verticalDistance = (screenHeight * margin / 2) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+                    const horizontalFov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+                    const horizontalDistance = (screenWidth * margin / 2) / Math.tan(horizontalFov / 2);
+                    const distance = Math.max(verticalDistance, horizontalDistance, 8);
+                    camera.position.set(0, screenHeight / 2 - 0.5, distance);
+                    controls.target.set(0, screenHeight / 2 - 2, 0);
+                    controls.update();
+                    updateStatus('EDGE FIT · GEOMETRY PRESERVED');
+                } else {
+                    if (preFitCamera) {
+                        camera.position.copy(preFitCamera.position);
+                        camera.fov = preFitCamera.fov;
+                        camera.updateProjectionMatrix();
+                        controls.target.copy(preFitCamera.target);
+                        controls.update();
+                    }
+                    updateStatus('EDGE FIT OFF');
+                }
+            });
+
+            document.getElementById('btn-recenter').addEventListener('click', () => {
+                camera.position.set(0, state.seatEyeY, state.curDistance);
+                camera.lookAt(0, 5, 0);
+                controls.target.set(0, 5, 0);
+                controls.update();
+            });
+            document.getElementById('btn-view-front').addEventListener('click', () => { setViewingAngle(0); saveSettings(); });
+            document.getElementById('btn-view-left').addEventListener('click', () => { setViewingAngle(-7); saveSettings(); });
+            document.getElementById('btn-view-right').addEventListener('click', () => { setViewingAngle(7); saveSettings(); });
+
+            document.getElementById('btn-fullscreen').addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => updateStatus('FULLSCREEN NOT AVAILABLE'));
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                }
+            });
+
+            document.querySelectorAll('.btn-aspect').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.btn-aspect').forEach(b => {
+                        b.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                        b.classList.add('border-transparent', 'text-slate-300');
+                    });
+
+                    const targetBtn = e.currentTarget;
+                    targetBtn.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                    targetBtn.classList.remove('border-transparent', 'text-slate-300');
+
+                    state.aspectRatio = parseFloat(targetBtn.getAttribute('data-ratio'));
+                    createIMAXScreen();
+                    saveSettings();
+                });
+            });
+
+            const sliderCurvature = document.getElementById('slider-curvature');
+            function updateCurvatureLabel() {
+                const v = state.curvature;
+                const label = Math.abs(v) < 0.005 ? 'Flat' : (v < 0 ? 'Convex' : 'Concave');
+                const intensity = Math.abs(v) < 0.005 ? '' : (Math.abs(v) < 0.25 ? ' · Low' : Math.abs(v) < 0.55 ? ' · Medium' : ' · Strong');
+                document.getElementById('val-curvature').textContent = label + intensity + (Math.abs(v - 0.35) < 0.005 ? ' · Default' : '');
+            }
+            sliderCurvature.addEventListener('input', (e) => {
+                state.curvature = parseFloat(e.target.value);
+                updateCurvatureLabel();
+                createIMAXScreen();
+                saveSettings();
+            });
+
+            const sliderScale = document.getElementById('slider-scale');
+            sliderScale.addEventListener('input', (e) => {
+                state.scale = parseFloat(e.target.value);
+                document.getElementById('val-scale').textContent = `${Math.round(state.scale * 100)}%`;
+                createIMAXScreen();
+                saveSettings();
+            });
+
+            const sliderFOV = document.getElementById('slider-fov');
+            sliderFOV.addEventListener('input', (e) => {
+                state.fov = parseInt(e.target.value);
+                document.getElementById('val-fov').textContent = `${state.fov}°`;
+                camera.fov = state.fov;
+                camera.updateProjectionMatrix();
+                saveSettings();
+            });
+
+            const sliderLight = document.getElementById('slider-light');
+            sliderLight.addEventListener('input', (e) => {
+                state.lightIntensity = parseFloat(e.target.value);
+                document.getElementById('val-light').textContent = `${Math.round(state.lightIntensity * 100)}%`;
+                saveSettings();
+            });
+
+            document.getElementById('btn-seat-front').addEventListener('click', () => {
+                setSeatingPreset('front', 14, -2.7, 55); saveSettings();
+            });
+            document.getElementById('btn-seat-center').addEventListener('click', () => {
+                setSeatingPreset('center', 22, -0.3, 65); saveSettings();
+            });
+            document.getElementById('btn-seat-back').addEventListener('click', () => {
+                setSeatingPreset('back', 32, 1.3, 75); saveSettings();
+            });
+
+            document.getElementById('slider-side-light').addEventListener('input', (e) => {
+                state.sideWallIntensity = parseFloat(e.target.value);
+                document.getElementById('val-side-light').textContent = `${Math.round(state.sideWallIntensity * 100)}%`;
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92); wallGlowRight.intensity = wallGlowLeft.intensity; }
+                saveSettings();
+            });
+
+            document.getElementById('btn-reset-settings').addEventListener('click', () => {
+                state.aspectRatio = 1.43; state.curvature = 0.35; state.sideWallIntensity = 0.35; state.edgeFit = false;
+                document.getElementById('btn-edge-fit').setAttribute('aria-pressed', 'false'); document.getElementById('btn-edge-fit').classList.remove('control-active'); preFitCamera = null;
+                state.scale = 1.0; state.fov = 65; state.lightIntensity = 0.8; state.themeMode = 'dark'; state.quality = 'medium';
+                document.querySelectorAll('.btn-aspect').forEach(b => {
+                    const active = parseFloat(b.dataset.ratio) === 1.43;
+                    b.classList.toggle('border-blue-500', active); b.classList.toggle('bg-blue-600/20', active); b.classList.toggle('text-blue-400', active);
+                    b.classList.toggle('border-transparent', !active); b.classList.toggle('text-slate-300', !active);
+                });
+                document.getElementById('slider-curvature').value = state.curvature; updateCurvatureLabel();
+                document.getElementById('slider-scale').value = 1; document.getElementById('val-scale').textContent = '100%';
+                document.getElementById('slider-fov').value = 65; document.getElementById('val-fov').textContent = '65°';
+                document.getElementById('slider-light').value = 0.8; document.getElementById('val-light').textContent = '80%';
+                document.getElementById('slider-side-light').value = 0.35; document.getElementById('val-side-light').textContent = '35%';
+                document.getElementById('select-quality').value = 'medium'; applyGraphicsQuality();
+                camera.fov = 65; camera.updateProjectionMatrix();
+                scene.fog.density = 0.018;
+                document.getElementById('btn-theme-dark').className = 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium';
+                document.getElementById('btn-theme-glow').className = 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white';
+                setSeatingPreset('center', 22, -0.3, 65);
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * 0.92; wallGlowRight.intensity = state.sideWallIntensity * 0.92; }
+                if (state.screenX) setScreenXMode(false); else createIMAXScreen();
+                saveSettings();
+                updateStatus('SETTINGS RESET · IMAX');
+            });
+
+            document.getElementById('select-quality').addEventListener('change', (e) => {
+                state.quality = e.target.value;
+                applyGraphicsQuality();
+                saveSettings();
+                updateStatus('QUALITY · ' + state.quality.toUpperCase());
+            });
+            document.getElementById('btn-save-settings').addEventListener('click', () => {
+                saveSettings();
+                updateStatus('SETTINGS SAVED');
+            });
+
+            document.getElementById('btn-theme-dark').addEventListener('click', (e) => {
+                state.themeMode = 'dark';
+                scene.fog.density = 0.018;
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * 0.92; wallGlowRight.intensity = state.sideWallIntensity * 0.92; }
+                e.currentTarget.className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium";
+                document.getElementById('btn-theme-glow').className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white";
+                saveSettings();
+            });
+
+            document.getElementById('btn-theme-glow').addEventListener('click', (e) => {
+                state.themeMode = 'glow';
+                scene.fog.density = 0.008;
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * 3.15; wallGlowRight.intensity = state.sideWallIntensity * 3.15; }
+                e.currentTarget.className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium";
+                document.getElementById('btn-theme-dark').className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white";
+                saveSettings();
+            });
         }
 
-        function setSeat(dist, fov) { state.curDistance = dist; state.fov = fov; camera.position.set(0, 1.5, dist); camera.fov = fov; camera.updateProjectionMatrix(); document.getElementById('slider-fov').value = fov; document.getElementById('val-fov').textContent = fov + '°'; }
-        function formatTime(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}`; }
-        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
-        function animate() { requestAnimationFrame(animate); controls.update(); updateSmoothDepthMap(); renderer.render(scene, camera); }
+        const SETTINGS_KEY = 'imaxScreenXSettings_v30';
+        function restoreSavedSettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+                if (!saved || typeof saved !== 'object') return;
+                if ([1.43, 1.90].includes(Number(saved.aspectRatio))) state.aspectRatio = Number(saved.aspectRatio);
+                if (Number.isFinite(Number(saved.curvature))) state.curvature = Math.max(-0.8, Math.min(0.8, Number(saved.curvature)));
+                if (Number.isFinite(Number(saved.sideWallIntensity))) state.sideWallIntensity = Math.max(0, Math.min(1.5, Number(saved.sideWallIntensity)));
+                if (Number.isFinite(Number(saved.scale))) state.scale = Math.max(0.7, Math.min(1.5, Number(saved.scale)));
+                if (Number.isFinite(Number(saved.fov))) state.fov = Math.max(45, Math.min(95, Number(saved.fov)));
+                if (Number.isFinite(Number(saved.lightIntensity))) state.lightIntensity = Math.max(0, Math.min(2, Number(saved.lightIntensity)));
+                if (['dark','glow'].includes(saved.themeMode)) state.themeMode = saved.themeMode;
+                if (['low','medium','high'].includes(saved.quality)) state.quality = saved.quality;
+                state.screenX = Boolean(saved.screenX);
+                if (Number.isFinite(Number(saved.curDistance))) state.curDistance = Math.max(14, Math.min(32, Number(saved.curDistance)));
+
+                if (['off','parallax','depthMap'].includes(saved.depthMode)) state.depthMode = saved.depthMode;
+                if (Number.isFinite(Number(saved.depthStrength))) state.depthStrength = Number(saved.depthStrength);
+                if (typeof saved.popoutEnabled === 'boolean') state.popoutEnabled = saved.popoutEnabled;
+                if (Number.isFinite(Number(saved.popoutDistance))) state.popoutDistance = Number(saved.popoutDistance);
+                if (typeof saved.demoObjects === 'boolean') state.demoObjects = saved.demoObjects;
+                if (typeof saved.particlesEnabled === 'boolean') state.particlesEnabled = saved.particlesEnabled;
+                if (typeof saved.raysEnabled === 'boolean') state.raysEnabled = saved.raysEnabled;
+                if (typeof saved.glowEnabled === 'boolean') state.glowEnabled = saved.glowEnabled;
+            } catch (_) { /* Storage fallback */ }
+        }
+
+        function saveSettings() {
+            try {
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+                    aspectRatio: state.aspectRatio, curvature: state.curvature,
+                    sideWallIntensity: state.sideWallIntensity, scale: state.scale,
+                    fov: state.fov, lightIntensity: state.lightIntensity,
+                    themeMode: state.themeMode, quality: state.quality,
+                    screenX: state.screenX, curDistance: state.curDistance,
+                    depthMode: state.depthMode, depthStrength: state.depthStrength,
+                    popoutEnabled: state.popoutEnabled, popoutDistance: state.popoutDistance,
+                    demoObjects: state.demoObjects, particlesEnabled: state.particlesEnabled,
+                    raysEnabled: state.raysEnabled, glowEnabled: state.glowEnabled
+                }));
+            } catch (_) { /* Storage fallback */ }
+        }
+
+        function syncSettingsUI() {
+            document.getElementById('slider-curvature').value = state.curvature;
+            document.getElementById('slider-scale').value = state.scale;
+            document.getElementById('slider-fov').value = state.fov;
+            document.getElementById('slider-light').value = state.lightIntensity;
+            document.getElementById('slider-side-light').value = state.sideWallIntensity;
+            document.getElementById('select-quality').value = state.quality;
+            document.getElementById('val-curvature').textContent = Math.abs(state.curvature) < 0.005 ? 'Flat' : (state.curvature > 0 ? 'Concave' : 'Convex');
+            document.getElementById('val-scale').textContent = `${Math.round(state.scale * 100)}%`;
+            document.getElementById('val-fov').textContent = `${state.fov}°`;
+            document.getElementById('val-light').textContent = `${Math.round(state.lightIntensity * 100)}%`;
+            document.getElementById('val-side-light').textContent = `${Math.round(state.sideWallIntensity * 100)}%`;
+            document.querySelectorAll('.btn-aspect').forEach(b => {
+                const active = Math.abs(parseFloat(b.dataset.ratio) - state.aspectRatio) < 0.001;
+                b.classList.toggle('border-blue-500', active); b.classList.toggle('bg-blue-600/20', active); b.classList.toggle('text-blue-400', active);
+                b.classList.toggle('border-transparent', !active); b.classList.toggle('text-slate-300', !active);
+            });
+
+            document.getElementById('select-depth-mode').value = state.depthMode;
+            document.getElementById('slider-depth-strength').value = state.depthStrength;
+            document.getElementById('val-depth-strength').textContent = state.depthStrength.toFixed(2);
+            document.getElementById('slider-popout-dist').value = state.popoutDistance;
+            document.getElementById('val-popout-dist').textContent = `${state.popoutDistance.toFixed(1)}m`;
+            
+            const btnPopout = document.getElementById('btn-popout-toggle');
+            btnPopout.textContent = state.popoutEnabled ? 'ON' : 'OFF';
+            btnPopout.classList.toggle('bg-indigo-600/20', state.popoutEnabled);
+
+            const btnDemoMode = document.getElementById('btn-demo-mode');
+            btnDemoMode.textContent = state.demoObjects ? 'ON' : 'OFF';
+            btnDemoMode.classList.toggle('text-indigo-300', state.demoObjects);
+            btnDemoMode.classList.toggle('bg-indigo-600/20', state.demoObjects);
+
+            const btnParticles = document.getElementById('btn-particles-toggle');
+            btnParticles.textContent = state.particlesEnabled ? 'ON' : 'OFF';
+            btnParticles.classList.toggle('bg-indigo-600/20', state.particlesEnabled);
+
+            const btnRays = document.getElementById('btn-rays-toggle');
+            btnRays.textContent = state.raysEnabled ? 'ON' : 'OFF';
+            btnRays.classList.toggle('bg-indigo-600/20', state.raysEnabled);
+
+            const btnGlow = document.getElementById('btn-glow-toggle');
+            btnGlow.textContent = state.glowEnabled ? 'ON' : 'OFF';
+            btnGlow.classList.toggle('bg-indigo-600/20', state.glowEnabled);
+        }
+
+        function syncThemeUI() {
+            const glow = state.themeMode === 'glow';
+            scene.fog.density = glow ? 0.008 : 0.018;
+            if (wallGlowLeft) {
+                wallGlowLeft.intensity = state.sideWallIntensity * (glow ? 3.15 : 0.92);
+                wallGlowRight.intensity = wallGlowLeft.intensity;
+            }
+            document.getElementById('btn-theme-dark').className = glow
+                ? 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white'
+                : 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium';
+            document.getElementById('btn-theme-glow').className = glow
+                ? 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium'
+                : 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white';
+        }
+
+        function getQualityPixelRatio(isMobile) {
+            const dpr = window.devicePixelRatio || 1;
+            if (state.quality === 'low') return Math.min(dpr, 0.85);
+            if (state.quality === 'high') return Math.min(dpr, isMobile ? 1.5 : 2);
+            return Math.min(dpr, isMobile ? 1.15 : 1.5);
+        }
+
+        function applyGraphicsQuality() {
+            if (!renderer) return;
+            const mobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || window.innerWidth < 700;
+            renderer.setPixelRatio(getQualityPixelRatio(mobile));
+            renderer.shadowMap.enabled = state.quality === 'high' && !mobile;
+            renderer.shadowMap.needsUpdate = true;
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function setViewingAngle(xOffset) {
+            camera.position.set(xOffset, state.seatEyeY, state.curDistance);
+            controls.target.set(xOffset * 0.25, 5, 0);
+            camera.lookAt(controls.target);
+                        controls.update();
+        }
+
+        function setSeatingPreset(preset, distance, eyeY, fov) {
+            state.seatPreset = preset;
+            state.curDistance = distance;
+            state.seatEyeY = eyeY;
+            state.fov = fov;
+            camera.position.set(0, eyeY, distance);
+            camera.fov = fov;
+            camera.updateProjectionMatrix();
+            document.getElementById('slider-fov').value = fov;
+            document.getElementById('val-fov').textContent = `${fov}°`;
+            controls.target.set(0, 5, 0);
+            controls.update();
+            ['front','center','back'].forEach(name => {
+                const btn = document.getElementById(`btn-seat-${name}`);
+                const active = name === preset;
+                btn.classList.toggle('control-active', active);
+                btn.classList.toggle('bg-blue-600/30', active);
+                btn.classList.toggle('border', active);
+                btn.classList.toggle('border-blue-500', active);
+                btn.classList.toggle('text-blue-300', active);
+            });
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        document.addEventListener('fullscreenchange', () => setTimeout(onWindowResize, 120));
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            const mobile = window.innerWidth < 700;
+            renderer.setPixelRatio(getQualityPixelRatio(mobile));
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+        });
+
+        // --- 8. Animation Loop ---
+        function animate(timestamp) {
+            requestAnimationFrame(animate);
+
+            const timeSec = (timestamp || 0) * 0.001;
+
+            controls.update();
+            updateDynamicAmbilight();
+            analyzeVideoDepthMap();
+            updateCinematicEffects(timeSec);
+
+            renderer.render(scene, camera);
+        }
     </script>
 </body>
 </html>
