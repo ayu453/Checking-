@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="stylesheet" href="styles.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IMAX + ScreenX Immersive Cinema Simulator · Quick Controls</title>
@@ -15,9 +13,307 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    
+    <style>
+        body.cinema-fullscreen-fallback, body.cinema-fullscreen-fallback html {
+            position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; overflow: hidden !important;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050508;
+            font-family: "Inter", sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Custom Scrollbar for Control Panel */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.8);
+        }
+
+        /* Range Input Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(10, 15, 26, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Ambient Glow Effect on Container */
+        .glow-border {
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
+        }
+
+        #status-pill { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .control-active { border-color: rgba(59,130,246,.9) !important; background: rgba(37,99,235,.24) !important; color: #93c5fd !important; }
+        @media (max-width: 640px) {
+            #controls-panel { width: min(88vw, 340px); right: 8px; top: 68px; max-height: calc(100vh - 168px); padding: 14px; gap: 14px; }
+            #player-bar { bottom: 8px; width: calc(100% - 16px); padding: 9px; }
+            #btn-fullscreen, #btn-recenter { padding: 9px; }
+        }
+
+        /* Consistent adaptive layout: preserve all controls and the 3D scene on phone, tablet and desktop. */
+        html, body { width: 100%; min-width: 0; min-height: 100%; margin: 0; overflow: hidden; }
+        #app { width: 100%; min-width: 0; min-height: 100dvh; overflow: hidden; }
+        #canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; height: 100dvh; touch-action: pan-x pan-y; }
+        canvas { display: block; }
+        body.cinema-ui-hidden > header,
+        body.cinema-ui-hidden #quick-controls,
+        body.cinema-ui-hidden #player-bar,
+        body.cinema-ui-hidden #cinema-left-tools,
+        body.cinema-ui-hidden #cinema-right-tools,
+        body.cinema-ui-hidden #controls-panel,
+        body.cinema-ui-hidden #status-pill,
+        body.cinema-ui-hidden .cinema-side-tools,
+        body.cinema-ui-hidden .cinema-icon-tool {
+            opacity: 0 !important; visibility: hidden !important; pointer-events: none !important;
+        }
+        body.cinema-ui-hidden #canvas-container { cursor: none; }
+        @supports not (height: 100dvh) { #app, #canvas-container { min-height: 100vh; height: 100vh; } }
+
+        /* Browser-responsive seat picker and side panel. Keep all 15 seats visible. */
+        #seat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        #seat-grid button { min-width: 0; min-height: 30px; font-size: 11px; touch-action: manipulation; }
+        #controls-panel { box-sizing: border-box; overflow-x: hidden; }
+        @media (max-width: 640px) {
+            #seat-grid { gap: 6px; }
+            #seat-grid button { min-height: 34px; font-size: 12px; }
+            #controls-panel { width: min(92vw, 360px); max-height: calc(100dvh - 140px); overflow-y: auto; }
+        }
+        @media (max-width: 380px) {
+            #controls-panel { width: calc(100vw - 16px); right: 8px; padding: 10px; }
+            #seat-grid { gap: 4px; }
+            #seat-grid button { min-height: 32px; }
+        }
+
+        /* Fallback landscape simulation when browser/device orientation lock is unavailable. */
+        body.rotate-landscape-fallback { overflow: hidden !important; }
+        body.rotate-landscape-fallback #app {
+            position: fixed !important; width: 100dvh !important; height: 100vw !important;
+            max-width: none !important; transform: rotate(90deg) translateY(-100%);
+            transform-origin: top left; left: 100vw !important; top: 0 !important;
+        }
+        /* Landscape phone/tablet layout: compact controls, wider playback bar. */
+        @media (orientation: landscape) and (max-height: 600px) {
+            header { padding: 8px !important; }
+            header h1 { font-size: 14px !important; }
+            header .text-xs { font-size: 9px !important; }
+            header .bg-blue-600 { padding: 6px !important; }
+            header .bg-blue-600 i { font-size: 15px !important; }
+            #status-pill { max-width: 30vw; padding: 5px 7px !important; font-size: 9px !important; }
+            #btn-toggle-ui { padding: 6px 8px !important; }
+            #btn-fullscreen, #btn-recenter { padding: 7px !important; }
+            #controls-panel {
+                top: 54px; right: 8px; width: min(300px, 42vw);
+                max-height: calc(100dvh - 112px); padding: 11px; gap: 11px;
+            }
+            #player-bar {
+                left: 8px; transform: none; bottom: 8px;
+                width: min(68vw, 760px); max-width: calc(100vw - 16px);
+                padding: 7px 10px; gap: 5px; border-radius: 14px;
+            }
+            #player-bar .flex.items-center.justify-between { gap: 8px; }
+            #player-bar button { width: 34px; height: 34px; }
+            #player-bar label { padding: 7px 9px; }
+            #player-bar input[type="range"] { max-width: 100px; }
+        }
+        @media (orientation: landscape) and (max-height: 420px) {
+            #controls-panel { top: 48px; max-height: calc(100dvh - 96px); }
+            #player-bar { width: min(64vw, 680px); }
+            #player-bar .text-xs { font-size: 10px; }
+            #player-bar button { width: 30px; height: 30px; }
+        }
+
+        /* Hide legacy duplicate playback controls; the fit/orientation controls are removed from the HTML. */
+        #btn-recenter, #btn-fullscreen, #btn-play, #btn-mute, #btn-restart { display: none !important; }
+        /* The reference key row should span the full player width, especially in landscape. */
+        #player-bar { width: min(92vw, 760px); }
+        #player-bar > .flex.items-center.justify-between { justify-content: flex-end; }
+        .reference-player-controls { width: 100%; box-sizing: border-box; }
+        @media (orientation: landscape) and (max-height: 600px) {
+          #volume-bar { display: none !important; }
+          #player-bar .flex.items-center.gap-3.px-1 { width: 100%; box-sizing: border-box; }
+          #player-bar #seek-bar { flex: 1 1 auto; min-width: 0; width: 100%; }
+          #time-current, #time-total { flex: 0 0 auto; white-space: nowrap; }
+          header { gap: 8px; }
+          #header-upload-video { padding: 7px 9px !important; font-size: 10px !important; }
+          #player-bar { left: 2vw !important; right: 2vw !important; transform: none !important; width: 96vw !important; max-width: none !important; }
+          .reference-player-controls { justify-content: space-between; gap: 0; padding-left: 3vw; padding-right: 3vw; }
+          .reference-player-controls button { flex: 0 0 auto; }
+        }
+
+        /* Quick controls live on the main screen, not inside the settings panel. */
+        #quick-controls { max-width: calc(100vw - 24px); }
+        #quick-controls button { min-height: 40px; white-space: nowrap; touch-action: manipulation; }
+        #quick-controls #seat-picker, #curvature-popover { z-index: 40; }
+        #curvature-popover[hidden] { display: none !important; }
+        #curvature-popover:not([hidden]) { display: flex; }
+        #aspect-ratio-quick-control .btn-aspect { white-space: nowrap; }
+        @media (min-width: 641px) {
+            #quick-controls { left: 24px; bottom: 112px; gap: 10px; align-items: center; flex-wrap: wrap; }
+            #quick-controls button { min-height: 42px; }
+        }
+        .settings-category { display:flex; align-items:center; gap:9px; margin:2px 0 -5px; color:#94a3b8; font-size:9px; font-weight:800; letter-spacing:.14em; }
+        .settings-category-line { height:1px; flex:1; background:rgba(100,116,139,.3); }
+        @media (max-width: 640px) {
+            #quick-controls { left: 10px !important; bottom: 142px !important; gap: 6px !important; }
+            #quick-controls button { min-height: 38px; padding: 8px 10px !important; font-size: 10px !important; }
+            #quick-controls #seat-picker { width: min(280px, calc(100vw - 24px)); }
+            #controls-panel { max-height: calc(100dvh - 110px) !important; padding: 14px !important; }
+        }
+        @media (max-width: 380px) {
+            #quick-controls { bottom: 150px !important; }
+            #quick-controls button { padding: 7px 8px !important; }
+        }
+        body:fullscreen #quick-controls, body.cinema-fullscreen-fallback #quick-controls { bottom: 120px; }
 
     
+        /* Floating side icon rails for the web cinema view. */
+        .cinema-side-tools { position:fixed; z-index:35; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:9px; pointer-events:auto; }
+        .cinema-side-left { left:16px; }
+        .cinema-side-right { right:16px; }
+        .cinema-icon-tool { position:relative; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(96,165,250,.35); border-radius:14px; color:#dbeafe; background:rgba(8,15,30,.84); backdrop-filter:blur(12px); box-shadow:0 8px 24px rgba(0,0,0,.24); cursor:pointer; touch-action:manipulation; }
+        .cinema-icon-tool:hover,.cinema-icon-tool:focus-visible,.cinema-icon-tool.label-open { color:#fff; border-color:rgba(96,165,250,.85); background:rgba(30,64,175,.78); outline:none; }
+        .cinema-icon-tool .tool-label { position:absolute; top:50%; transform:translateY(-50%); opacity:0; pointer-events:none; white-space:nowrap; padding:7px 10px; border-radius:8px; color:#f8fafc; background:rgba(2,6,23,.96); border:1px solid rgba(100,116,139,.45); font:600 11px/1.2 system-ui,sans-serif; transition:opacity .12s ease; }
+        .cinema-side-left .tool-label { left:calc(100% + 8px); }
+        .cinema-side-right .tool-label { right:calc(100% + 8px); }
+        .cinema-icon-tool:hover .tool-label,.cinema-icon-tool:focus-visible .tool-label,.cinema-icon-tool.label-open .tool-label { opacity:1; }
+        .cinema-side-tools #btn-choose-seat,.cinema-side-tools #btn-glow-toggle { width:44px; height:44px; min-height:44px; padding:0 !important; display:flex; align-items:center; justify-content:center; border-radius:14px; }
+        .cinema-side-tools #btn-choose-seat i,.cinema-side-tools #btn-glow-toggle i { margin:0 !important; }
+        #side-curvature-wrap { position:relative; }
+        #side-curvature-wrap #curvature-popover { z-index:50; min-width:260px; }
+        #side-seat-slot .tool-label,#side-rim-slot .tool-label { position:absolute; top:50%; transform:translateY(-50%); left:auto; right:calc(100% + 8px); opacity:0; pointer-events:none; white-space:nowrap; padding:7px 10px; border-radius:8px; color:#f8fafc; background:rgba(2,6,23,.96); border:1px solid rgba(100,116,139,.45); font:600 11px/1.2 system-ui,sans-serif; }
+        #side-seat-slot button:hover .tool-label,#side-seat-slot button.label-open .tool-label,#side-rim-slot button:hover .tool-label,#side-rim-slot button.label-open .tool-label { opacity:1; }
+        .cinema-side-tools #btn-choose-seat #seat-toggle-text,.cinema-side-tools #btn-glow-toggle #glow-toggle-text { display:none; }
+        #side-seat-slot,#side-rim-slot { position:relative; }
+        #side-seat-slot #seat-picker { bottom:0; left:auto; right:calc(100% + 10px); }
+        .toolbar-restore { position:fixed; z-index:60; top:16px; left:16px; }
+        #btn-restore-toolbar[hidden] { display:none !important; }
+        #quick-controls { display:none !important; }
+        @media (max-width:640px) { .cinema-side-left { left:7px; } .cinema-side-right { right:7px; } .cinema-side-tools { gap:7px; } .cinema-icon-tool,.cinema-side-tools #btn-choose-seat,.cinema-side-tools #btn-glow-toggle { width:38px; height:38px; min-height:38px; border-radius:12px; } }
+        @media (max-height:520px) { .cinema-side-tools { gap:5px; } .cinema-icon-tool,.cinema-side-tools #btn-choose-seat,.cinema-side-tools #btn-glow-toggle { width:36px; height:36px; min-height:36px; } }
+</style>
+
+    <style id="mobile-responsive-overrides">
+      :root { color-scheme: dark; }
+      html, body { min-height:100%; min-height:100dvh; overscroll-behavior:none; }
+      body { overflow:hidden; }
+      #canvas-container, #canvas-container canvas { width:100%; height:100%; }
+      button, input, select, label { -webkit-tap-highlight-color:transparent; }
+      button, label { touch-action:manipulation; }
+      input[type="range"] { min-height:22px; touch-action:pan-y; }
+      #controls-panel { box-sizing:border-box; }
+      #player-bar { padding-bottom:max(10px, env(safe-area-inset-bottom)); }
+      #cinema-left-tools, #cinema-right-tools { max-height:calc(100dvh - 120px); }
+      #side-seat-slot #seat-picker { max-width:min(280px, calc(100vw - 70px)); }
+      #curvature-popover { max-width:calc(100vw - 80px) !important; }
+      #header-upload-video { white-space:nowrap; }
+      @media (max-width: 700px) {
+        header { padding: max(8px, env(safe-area-inset-top)) 8px 8px !important; gap:6px; align-items:flex-start; }
+        header > div:first-child { gap:7px !important; min-width:0; }
+        header > div:first-child > div:first-child { padding:7px !important; border-radius:10px !important; }
+        header h1 { font-size:clamp(12px, 3.5vw, 16px) !important; line-height:1.15 !important; }
+        header p { font-size:9px !important; line-height:1.2 !important; }
+        header > div:last-child { gap:5px !important; flex-wrap:nowrap; justify-content:flex-end; }
+        #status-pill { max-width:25vw; font-size:9px !important; padding:6px !important; }
+        #btn-toggle-ui { padding:7px !important; min-width:34px; min-height:34px; justify-content:center; }
+        #header-upload-video { padding:7px !important; min-height:34px; font-size:10px !important; }
+        #header-upload-video span { display:none; }
+        #controls-panel {
+          position:fixed !important; top:58px !important; right:8px !important; left:auto !important;
+          width:min(88vw, 370px) !important; max-width:calc(100vw - 16px) !important;
+          max-height:calc(100dvh - 150px - env(safe-area-inset-bottom)) !important;
+          padding:13px !important; gap:13px !important; z-index:55 !important;
+          overflow-y:auto !important; overscroll-behavior:contain;
+        }
+        #player-bar {
+          position:fixed !important; left:8px !important; right:8px !important;
+          bottom:max(8px, env(safe-area-inset-bottom)) !important; width:auto !important;
+          max-width:none !important; padding:8px 10px 7px !important; gap:5px !important;
+          border-radius:16px !important; z-index:30 !important;
+        }
+        #player-bar .reference-player-controls { gap:clamp(4px, 3vw, 14px) !important; padding-top:3px !important; }
+        #player-bar .reference-player-controls button { width:40px; height:40px; font-size:18px; flex:0 1 42px; }
+        #player-bar .reference-player-controls .reference-play { width:48px; height:48px; flex:0 0 48px; }
+        #player-bar #time-current, #player-bar #time-total { font-size:10px !important; min-width:34px !important; }
+        #player-bar > .flex.items-center.gap-3.px-1 { gap:7px !important; }
+        #player-bar > .flex.items-center.justify-between { gap:6px !important; }
+        #cinema-left-tools { left:6px !important; }
+        #cinema-right-tools { right:6px !important; }
+        .cinema-side-tools { gap:6px !important; z-index:25; }
+        .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle {
+          width:36px !important; height:36px !important; min-height:36px !important; border-radius:11px !important;
+        }
+        .cinema-icon-tool .tool-label { font-size:10px; }
+        #btn-restore-toolbar { top:60px; left:8px; }
+        #player-bar .flex.items-center.justify-between.px-1.pt-1 { align-items:center; }
+      }
+      @media (max-width: 390px) {
+        header h1 { max-width:38vw; }
+        header p { max-width:38vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        #status-pill { display:none; }
+        #controls-panel { width:calc(100vw - 16px) !important; right:8px !important; }
+        #player-bar { left:5px !important; right:5px !important; padding-left:7px !important; padding-right:7px !important; }
+        #player-bar .reference-player-controls button { width:35px; height:35px; font-size:17px; }
+        #player-bar .reference-player-controls .reference-play { width:44px; height:44px; flex-basis:44px; }
+      }
+      @media (orientation:landscape) and (max-height:520px) {
+        header { padding:5px 8px !important; }
+        #controls-panel { top:46px !important; max-height:calc(100dvh - 100px) !important; width:min(310px, 43vw) !important; }
+        #player-bar { left:50px !important; right:50px !important; bottom:max(4px, env(safe-area-inset-bottom)) !important; width:auto !important; padding:5px 10px !important; }
+        #player-bar .reference-player-controls { padding-top:0 !important; }
+        #player-bar .reference-player-controls button { width:32px; height:32px; font-size:16px; }
+        #player-bar .reference-player-controls .reference-play { width:38px; height:38px; flex-basis:38px; }
+        .cinema-side-tools { gap:4px !important; }
+        .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle { width:32px !important; height:32px !important; min-height:32px !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition-duration:0.01ms !important; animation-duration:0.01ms !important; }
+      }
+    </style>
 
 </head>
 <body class="text-slate-200">
@@ -119,7 +415,174 @@
             <button data-player-action="more" title="More options" aria-label="More options"><i class="fa-solid fa-ellipsis"></i></button>
         </div>
     </div>
+    <style>
+      .reference-player-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 1px;}
+      .reference-player-controls button{width:42px;height:42px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:#f8fafc;font-size:21px;transition:background .15s,color .15s;}
+      .reference-player-controls button:hover{background:rgba(255,255,255,.12);}
+      .reference-player-controls .reference-play{width:58px;height:58px;border:3px solid #f8fafc;font-size:24px;background:rgba(10,15,25,.28);}
+      .reference-player-controls .reference-play:hover{background:rgba(255,255,255,.14);}
+      .reference-player-controls button[aria-pressed="true"]{color:#60a5fa;}
+      #player-bar { transition: opacity .22s ease, transform .22s ease; }
+      #player-bar.player-controls-hidden { opacity: 0; pointer-events: none; }
+      @media(max-width:520px){.reference-player-controls{gap:8px}.reference-player-controls button{width:38px;height:38px;font-size:19px}.reference-player-controls .reference-play{width:54px;height:54px;font-size:22px}}
+      /* Make the timeline/time labels span the available screen width on web and mobile. */
+      #player-bar {
+        left: 12px !important;
+        right: 12px !important;
+        width: calc(100vw - 24px) !important;
+        max-width: none !important;
+        box-sizing: border-box !important;
+        transform: none !important;
+      }
+      #player-bar > .flex.items-center.gap-3.px-1 {
+        display: flex !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        gap: 10px !important;
+      }
+      #player-bar #seek-bar {
+        display: block !important;
+        flex: 1 1 0% !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+      }
+      #player-bar #time-current, #player-bar #time-total {
+        flex: 0 0 auto !important;
+        white-space: nowrap !important;
+      }
+
+      /* Desktop web layout: use the wide browser viewport without stretching
+         the player across the entire screen or hiding desktop controls. */
+      @media (min-width: 900px) and (min-height: 601px) {
+        header { padding: 20px 24px !important; }
+        header h1 { font-size: 20px !important; }
+        header .text-xs { font-size: 12px !important; }
+        #status-pill { max-width: 280px; font-size: 12px !important; }
+        #controls-panel {
+          top: 92px !important;
+          right: 24px !important;
+          width: clamp(300px, 26vw, 390px) !important;
+          max-height: calc(100vh - 176px) !important;
+          max-height: calc(100dvh - 176px) !important;
+          padding: 20px !important;
+          gap: 20px !important;
+        }
+        #player-bar {
+          left: 50% !important;
+          right: auto !important;
+          bottom: 20px !important;
+          transform: translateX(-50%) !important;
+          width: min(72vw, 940px) !important;
+          max-width: 940px !important;
+          padding: 14px 18px !important;
+        }
+        #player-bar .reference-player-controls { justify-content: space-evenly; gap: 18px; }
+        #player-bar .reference-player-controls button { width: 44px; height: 44px; }
+        #player-bar .reference-player-controls .reference-play { width: 60px; height: 60px; }
+        #quick-controls { left: 24px !important; bottom: 176px !important; gap: 10px !important; }
+        #quick-controls button { min-height: 42px; padding: 11px 14px !important; font-size: 12px !important; }
+      }
+      /* Short landscape browser windows retain compact cinema controls. */
+      @media (min-width: 900px) and (max-height: 600px) {
+        #controls-panel { width: min(320px, 30vw) !important; max-height: calc(100dvh - 112px) !important; }
+        #player-bar { left: 12px !important; right: 12px !important; width: calc(100vw - 24px) !important; bottom: 8px !important; }
+        #quick-controls { left: 16px !important; bottom: 126px !important; }
+      }
     
+
+/* FULL MOBILE RESPONSIVE PASS: layout only; preserves existing features and controls. */
+
+html, body {
+  width: 100%; min-width: 0; max-width: 100%; height: 100%; min-height: 100%;
+  margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+}
+body { position: fixed; inset: 0; touch-action: pan-x pan-y; }
+#canvas-container { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden; }
+#canvas-container canvas { display: block; width: 100% !important; height: 100% !important; touch-action: pan-x pan-y; }
+*, *::before, *::after { box-sizing: border-box; }
+button, input, select, textarea, label { max-width: 100%; }
+button, label, input[type="range"] { touch-action: manipulation; }
+header { max-width: 100vw; min-width: 0; gap: clamp(4px, 1.5vw, 12px); padding-top: max(8px, env(safe-area-inset-top)) !important; padding-left: max(8px, env(safe-area-inset-left)) !important; padding-right: max(8px, env(safe-area-inset-right)) !important; }
+header > div { min-width: 0; }
+#status-pill { min-width: 0; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
+#controls-panel { box-sizing: border-box !important; min-width: 0 !important; max-width: calc(100vw - 16px) !important; max-height: calc(100dvh - 96px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important; overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#controls-panel > *, #controls-panel label, #controls-panel button, #controls-panel input, #controls-panel select { min-width: 0; }
+#player-bar { box-sizing: border-box !important; left: 50% !important; right: auto !important; width: min(760px, calc(100vw - 16px)) !important; max-width: calc(100vw - 16px) !important; transform: translateX(-50%) !important; bottom: max(8px, env(safe-area-inset-bottom)) !important; padding: clamp(7px, 1.8vw, 12px) !important; gap: clamp(4px, 1.2vw, 10px) !important; min-width: 0 !important; }
+#player-bar > *, #player-bar .flex, #player-bar .flex > * { min-width: 0; }
+#player-bar .flex.items-center.gap-3.px-1 { gap: clamp(5px, 1.5vw, 12px) !important; }
+#seek-bar { min-width: 0 !important; width: 100%; flex: 1 1 auto; }
+#time-current, #time-total { flex: 0 0 auto; min-width: 34px !important; white-space: nowrap; font-size: clamp(9px, 2.5vw, 12px) !important; }
+#player-bar .flex.items-center.justify-between { flex-wrap: wrap; gap: 6px; }
+#player-bar button, #vlc-key-panel button { flex: 0 0 auto; }
+#vlc-key-panel { display: flex !important; width: 100%; max-width: 100%; min-width: 0; justify-content: space-around !important; gap: clamp(4px, 2vw, 12px) !important; flex-wrap: nowrap; }
+#vlc-key-panel button { min-width: 0; min-height: 36px; width: clamp(34px, 9vw, 44px); height: clamp(34px, 9vw, 44px); }
+#quick-controls { max-width: calc(100vw - 16px) !important; min-width: 0; flex-wrap: wrap; }
+#seat-picker { max-width: calc(100vw - 24px) !important; }
+#seat-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+#seat-grid button { min-width: 0 !important; min-height: 36px; }
+.cinema-side-tools { max-width: calc(100vw - 8px); }
+.cinema-side-left { left: max(5px, env(safe-area-inset-left)) !important; }
+.cinema-side-right { right: max(5px, env(safe-area-inset-right)) !important; }
+.cinema-icon-tool { flex: 0 0 auto; }
+.custom-scrollbar { scrollbar-width: thin; }
+@media (max-width: 640px) {
+  header { align-items: flex-start !important; }
+  header > div:first-child { gap: 7px !important; }
+  header h1 { font-size: clamp(12px, 3.5vw, 17px) !important; line-height: 1.15 !important; }
+  header p { font-size: clamp(8px, 2.3vw, 10px) !important; line-height: 1.2 !important; }
+  header .bg-blue-600 { padding: 7px !important; }
+  header .bg-blue-600 i { font-size: 15px !important; }
+  header > div:last-child { gap: 5px !important; flex-wrap: nowrap; justify-content: flex-end; }
+  #header-upload-video { max-width: 33vw; padding: 8px !important; font-size: 10px !important; white-space: nowrap; }
+  #status-pill { display: none; }
+  #btn-toggle-ui { padding: 8px !important; }
+  #controls-panel { top: calc(58px + env(safe-area-inset-top)) !important; right: 8px !important; width: min(360px, calc(100vw - 16px)) !important; padding: 12px !important; gap: 12px !important; }
+  #player-bar { width: calc(100vw - 12px) !important; max-width: calc(100vw - 12px) !important; bottom: max(6px, env(safe-area-inset-bottom)) !important; border-radius: 14px !important; }
+  #player-bar .flex.items-center.gap-2 { gap: 5px !important; }
+  #player-bar .flex.items-center.gap-2 > button { width: 34px !important; height: 34px !important; }
+  #player-bar .flex.items-center.justify-between > .flex.items-center.gap-2 { flex: 0 1 auto; }
+  #player-bar .flex.items-center.justify-between > .flex.items-center.gap-2:last-child { margin-left: auto; }
+  #volume-bar { display: none !important; }
+  #vlc-key-panel { padding-top: 4px !important; }
+  #quick-controls { left: 8px !important; bottom: calc(142px + env(safe-area-inset-bottom)) !important; gap: 5px !important; }
+  #quick-controls button { min-height: 36px !important; padding: 7px 9px !important; font-size: 10px !important; }
+  .cinema-side-tools { gap: 6px !important; }
+  .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle { width: 36px !important; height: 36px !important; min-height: 36px !important; border-radius: 10px !important; }
+}
+@media (max-width: 390px) {
+  header { padding-left: 6px !important; padding-right: 6px !important; }
+  header h1 { font-size: 12px !important; }
+  header p { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #header-upload-video { max-width: 30px; width: 30px; justify-content: center; overflow: hidden; gap: 0 !important; }
+  #header-upload-video span { display: none !important; }
+  #player-bar { padding: 6px !important; }
+  #player-bar .flex.items-center.justify-between { gap: 4px !important; }
+  #player-bar .flex.items-center.gap-2 > button { width: 31px !important; height: 31px !important; }
+  #vlc-key-panel button { width: 32px; height: 32px; min-height: 32px; }
+  #time-current, #time-total { min-width: 30px !important; font-size: 9px !important; }
+  #quick-controls { bottom: calc(136px + env(safe-area-inset-bottom)) !important; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  header { padding-top: max(4px, env(safe-area-inset-top)) !important; }
+  header h1 { font-size: 13px !important; }
+  header p { display: none; }
+  #controls-panel { top: 48px !important; right: 8px !important; width: min(300px, 42vw) !important; max-height: calc(100dvh - 58px - env(safe-area-inset-bottom)) !important; padding: 9px !important; }
+  #player-bar { left: 50% !important; right: auto !important; width: min(700px, calc(100vw - 12px)) !important; max-width: calc(100vw - 12px) !important; bottom: max(4px, env(safe-area-inset-bottom)) !important; padding: 5px 8px !important; gap: 3px !important; }
+  #player-bar .flex.items-center.justify-between { flex-wrap: nowrap; }
+  #player-bar .flex.items-center.gap-2 > button { width: 30px !important; height: 30px !important; }
+  #vlc-key-panel { padding-top: 2px !important; }
+  #vlc-key-panel button { width: 30px; height: 30px; min-height: 30px; }
+  #quick-controls { bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
+  .cinema-side-tools { gap: 4px !important; }
+  .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle { width: 32px !important; height: 32px !important; min-height: 32px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+</style>
     <!-- Side Settings Control Panel -->
     <!-- Side-mounted cinema controls: icons stay visible; labels appear on hover or tap. -->
     <div id="cinema-left-tools" class="cinema-side-tools cinema-side-left" aria-label="Screen and lighting controls">
@@ -268,7 +731,7 @@
         <div class="flex flex-col gap-2">
             <label class="text-xs font-medium text-slate-400" for="select-quality">Graphics Quality</label>
             <select id="select-quality" class="glass-panel text-xs rounded-xl px-3 py-2.5 text-slate-200 bg-slate-900/90 border border-slate-700 focus:outline-none focus:border-blue-500">
-             <option value="low">Low · smoother on older phones</option>
+                <option value="low">Low · smoother on older phones</option>
                 <option value="medium" selected>Medium · balanced</option>
                 <option value="high">High · sharper rendering</option>
             </select>
@@ -283,16 +746,1835 @@
     </aside>
 
     <!-- Main JavaScript Simulator Engine -->
-    
+    <script>
+        // Sample Video Sources
+        const SAMPLES = {
+            sample1: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+            sample2: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4'
+        };
+
+        // Simulator State
+        const state = {
+            aspectRatio: 1.43,   // 1.43:1 (IMAX GT) or 1.90:1 (Digital)
+            curvature: 0.35,     // Viewer-relative: concave center farther away, edges wrap toward seats
+            sideWallIntensity: 0.35,
+            scale: 1.0,          // Screen scale multiplier
+            fov: 65,             // Camera Field of View
+            lightIntensity: 0.8, // Dynamic light intensity multiplier
+            themeMode: 'dark',   // 'dark' or 'glow'
+            curDistance: 22,     // Camera Z distance
+            seatEyeY: -0.8,      // Eye height follows the selected auditorium row
+            seatX: 0,
+            selectedSeatNo: null,
+            seatPreset: 'center',
+            screenX: false,
+            screenShape: 'concave',
+            quality: 'medium',
+
+            // Advanced Depth & Cinematic FX Extensions
+            depthMode: 'parallax', // 'off', 'parallax', 'depthMap', 'aiVideoDepth'
+            depthStrength: 0.45,
+            glowEnabled: true,
+            edgeFit: false
+        };
+
+        // Three.js Core Variables
+        let scene, camera, renderer, controls;
+        let screenMesh, screenGeometry, screenMaterial, screenFrameMesh;
+        let backWallMesh = null, backWallGeometry = null;
+        let screenXGroup, screenXMaterials = [];
+        let wallGlowLeft, wallGlowRight, aisleLights = [];
+        let frameCounter = 0;
+        let currentObjectUrl = null;
+        let videoTexture, ambientLight, spotLight, overheadLight;
+        let cinemaPlayingMode = false;
+        let theaterRoom, wallMaterial, floorMaterial;
+        let preFitCamera = null;
+
+        // Visual Effects Objects
+        let screenRimGlowMesh = null;
+        let depthDataArray = null;
+        let depthAnalysisTarget = null;
+        let lastDepthAnalysisTime = 0;
+
+        // Video & Canvas Elements
+        const video = document.getElementById('imax-video');
+        const analysisCanvas = document.getElementById('analysis-canvas');
+        const analysisCtx = analysisCanvas.getContext('2d', { willReadFrequently: true });
+        const depthCanvas = document.getElementById('depth-canvas');
+        const depthCtx = depthCanvas.getContext('2d', { willReadFrequently: true });
+
+        // DOM Elements
+        const container = document.getElementById('canvas-container');
+        const btnPlay = document.getElementById('btn-play');
+        const btnMute = document.getElementById('btn-mute');
+        const seekBar = document.getElementById('seek-bar');
+        const volumeBar = document.getElementById('volume-bar');
+        const timeCurrent = document.getElementById('time-current');
+        const timeTotal = document.getElementById('time-total');
+        const videoFileInput = document.getElementById('video-file-input');
+        let aiDepthPipelinePromise = null;
+        let precomputedVideoDepthFrames = [];
+        let videoDepthAnalysisReady = false;
+        let videoDepthAnalysisInProgress = false;
+        let videoDepthAnalysisCancelled = false;
+        let currentAppliedDepthFrameIndex = -1;
+
+        function applyPrecomputedVideoDepth() {
+            if (state.depthMode !== 'aiVideoDepth' || !videoDepthAnalysisReady || !precomputedVideoDepthFrames.length) return;
+            const t = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+            let bestIndex = 0;
+            let bestDistance = Math.abs(precomputedVideoDepthFrames[0].time - t);
+            for (let i = 1; i < precomputedVideoDepthFrames.length; i++) {
+                const distance = Math.abs(precomputedVideoDepthFrames[i].time - t);
+                if (distance < bestDistance) { bestIndex = i; bestDistance = distance; }
+            }
+            if (bestIndex !== currentAppliedDepthFrameIndex) {
+                currentAppliedDepthFrameIndex = bestIndex;
+                depthDataArray = precomputedVideoDepthFrames[bestIndex].data;
+                updateDepthMeshDisplacement();
+            }
+        }
+        const controlsPanel = document.getElementById('controls-panel');
+
+        // Persisted user settings are restored before building the scene.
+        restoreSavedSettings();
+
+        // Initialize Application
+        window.addEventListener('DOMContentLoaded', () => {
+            syncSettingsUI();
+            initThreeJS();
+            initTheaterEnvironment();
+            syncThemeUI();
+            createIMAXScreen();
+            initCinematicEffects();
+            initVideoPlayer();
+            setupUIEventListeners();
+            setScreenXMode(state.screenX);
+            applyGraphicsQuality();
+            animate();
+        });
+        // --- 1. Three.js Scene Setup ---
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x05070c, 0.018);
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(state.fov, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(state.seatX || 0, state.seatEyeY, state.curDistance);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            const isMobileDevice = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || window.innerWidth < 700;
+            renderer.setPixelRatio(getQualityPixelRatio(isMobileDevice));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.physicallyCorrectLights = false;
+            renderer.shadowMap.enabled = !isMobileDevice && state.quality === 'high';
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.1;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // OrbitControls for interactive viewing angle
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.05; // Prevent going beneath floor
+            controls.minDistance = 8;
+            controls.maxDistance = 27;
+            controls.enablePan = false; // Keep the viewing target inside the auditorium
+            controls.target.set(0, 5, 0);
+            controls.addEventListener('change', () => {
+                // Constrain the camera to the inside of the room (room bounds: x ±26, y -5..15, z about -3..26).
+                camera.position.x = THREE.MathUtils.clamp(camera.position.x, -24.5, 24.5);
+                camera.position.y = THREE.MathUtils.clamp(camera.position.y, -4.5, 14.5);
+                camera.position.z = THREE.MathUtils.clamp(camera.position.z, -2.5, 25.5);
+                controls.target.x = THREE.MathUtils.clamp(controls.target.x, -22, 22);
+                controls.target.y = THREE.MathUtils.clamp(controls.target.y, -3.5, 13.5);
+                controls.target.z = THREE.MathUtils.clamp(controls.target.z, -1.5, 24.5);
+                updateDepthMeshDisplacement();
+            });
+
+            // Resize listener
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 150));
+        }
+
+        // --- 2. Theater Room Geometry & Lighting ---
+        function initTheaterEnvironment() {
+            // Luxury auditorium fitted around the unchanged IMAX / ScreenX geometry.
+            ambientLight = new THREE.AmbientLight(0xb9bec6, 1.05);
+            scene.add(ambientLight);
+
+            spotLight = new THREE.PointLight(0x91a0b7, 0.72, 32, 1.8);
+            spotLight.position.set(0, 5, 2);
+            scene.add(spotLight);
+
+            overheadLight = new THREE.DirectionalLight(0xd4c9b8, 0.78);
+            overheadLight.position.set(0, 22, 10);
+            scene.add(overheadLight);
+
+            wallMaterial = new THREE.MeshStandardMaterial({
+                color: 0x191a1d, roughness: 0.94, metalness: 0.025
+            });
+            floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x181819, roughness: 1.0, metalness: 0.0
+            });
+
+            // Keep enough width for the existing ScreenX panels at their widest setting.
+            // The original screen and ScreenX geometry are deliberately not edited.
+            const roomWidth = 52;
+            const roomHeight = 20;
+            const roomDepth = 62;
+            // Extend floor and ceiling behind the bowed back wall so they meet it without a gap.
+            const roomCenterZ = 23.0;
+
+            // One continuous floor-to-ceiling curved BACK wall, kept behind the screen frame.
+            // Side-wall junctions move forward by half the 5.85-unit gap (2.925 units).
+            // The center of the back wall bows away from the seating area, behind the frame.
+            const backWallJunctionZ = -3.075;
+            backWallGeometry = new THREE.PlaneGeometry(roomWidth, roomHeight, 80, 1);
+            backWallGeometry.computeVertexNormals();
+            const backWallMat = wallMaterial.clone();
+            backWallMat.side = THREE.DoubleSide;
+            backWallMesh = new THREE.Mesh(backWallGeometry, backWallMat);
+            backWallMesh.position.set(0, roomHeight / 2 - 5, backWallJunctionZ);
+            scene.add(backWallMesh);
+            updateBackWallCurvature();
+
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth),
+                new THREE.MeshStandardMaterial({ color: 0x19191b, roughness: 1.0, metalness: 0.0 }));
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.set(0, -5, roomCenterZ);
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Side walls begin at the curved back wall's endpoints. The front part of
+            // each side wall is cut back by 2.925 units; the first window begins at z=-0.15.
+            // The screen/frame at z=-6 remains inside the room, in front of the bowed wall center.
+            const frameBackZ = -3.075;
+            const sideWallFrontZ = frameBackZ;
+            const sideEndZ = 26.0;
+            const sideWallLength = sideEndZ - sideWallFrontZ;
+            const sideWallCenterZ = (sideEndZ + sideWallFrontZ) / 2;
+            const sideWallMat = wallMaterial.clone();
+            sideWallMat.side = THREE.DoubleSide;
+            const sideWallGeo = new THREE.PlaneGeometry(sideWallLength, roomHeight);
+            for (const side of [-1, 1]) {
+                const sideWall = new THREE.Mesh(sideWallGeo, sideWallMat);
+                sideWall.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+                sideWall.position.set(side * roomWidth / 2, roomHeight / 2 - 5, sideWallCenterZ);
+                scene.add(sideWall);
+            }
+
+            // Close the auditorium at the REAR, behind the seating rows.
+            // The curved wall near z=-3.075 is the screen/front wall; this is the opposite wall.
+            const rearWallMat = wallMaterial.clone();
+            rearWallMat.side = THREE.DoubleSide;
+            const rearWall = new THREE.Mesh(
+                new THREE.PlaneGeometry(roomWidth, roomHeight),
+                rearWallMat
+            );
+            rearWall.position.set(0, roomHeight / 2 - 5, sideEndZ);
+            scene.add(rearWall);
+
+            const acousticMat = new THREE.MeshStandardMaterial({ color: 0x242528, roughness: 0.97, metalness: 0.015 });
+            const insetMat = new THREE.MeshStandardMaterial({ color: 0x101113, roughness: 0.94, metalness: 0.02 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0x37383a, roughness: 0.48, metalness: 0.38 });
+            const accentMat = new THREE.MeshBasicMaterial({ color: 0x8b6749, toneMapped: false });
+            const guidanceMat = new THREE.MeshBasicMaterial({ color: 0xffb16b, toneMapped: false });
+            const speakerMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.66, metalness: 0.1 });
+            const speakerConeMat = new THREE.MeshStandardMaterial({ color: 0x292b2e, roughness: 0.8, metalness: 0.04 });
+
+            // Side-wall panels are set back from the room boundary to keep ScreenX surfaces clear.
+            for (const side of [-1, 1]) {
+                for (let i = 0; i < 9; i++) {
+                    const z = 1.5 + i * 5.5;
+                    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.13, 10.5, 3.3), acousticMat);
+                    panel.position.set(side * 25.45, 6.2, z);
+                    scene.add(panel);
+
+                    const inset = new THREE.Mesh(new THREE.BoxGeometry(0.035, 8.4, 2.55), insetMat);
+                    inset.position.set(side * 25.36, 6.2, z);
+                    scene.add(inset);
+
+                    const verticalAccent = new THREE.Mesh(new THREE.BoxGeometry(0.035, 7.6, 0.045), accentMat);
+                    verticalAccent.position.set(side * 25.30, 6.2, z - 1.30);
+                    scene.add(verticalAccent);
+                }
+
+                // Compact flush surround speakers sit behind/within panel zones, away from screen projection.
+                for (const z of [5.5, 16.5, 27.5, 38.5, 49.5]) {
+                    const speaker = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.25, 0.82), speakerMat);
+                    speaker.position.set(side * 25.30, 3.7, z);
+                    scene.add(speaker);
+                    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.04, 14), speakerConeMat);
+                    cone.rotation.z = Math.PI / 2;
+                    cone.position.set(side * 25.18, 3.7, z);
+                    scene.add(cone);
+                }
+
+                const lowGuidance = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.045, 48), guidanceMat);
+                lowGuidance.position.set(side * 24.95, -4.86, 25);
+                scene.add(lowGuidance);
+            }
+
+            // Extra surround geometry outside the rectangular screen frame removed.
+
+            // Ceiling: restrained dark acoustic slats and low-glare recessed fixture details.
+            const ceilingMat = new THREE.MeshStandardMaterial({
+                color: 0x111214, roughness: 0.96, metalness: 0.02, side: THREE.DoubleSide
+            });
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth), ceilingMat);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.set(0, 15, roomCenterZ);
+            scene.add(ceiling);
+
+            const ceilingRibMat = new THREE.MeshStandardMaterial({ color: 0x252629, roughness: 0.88, metalness: 0.06 });
+            for (let z = -1; z < 53; z += 5.5) {
+                const slat = new THREE.Mesh(new THREE.BoxGeometry(46, 0.14, 0.22), ceilingRibMat);
+                slat.position.set(0, 14.82, z);
+                scene.add(slat);
+            }
+            const downlightMat = new THREE.MeshBasicMaterial({ color: 0x81725f, toneMapped: false });
+            for (const x of [-14, 0, 14]) {
+                for (const z of [3, 17, 31, 45]) {
+                    const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.045, 12), downlightMat);
+                    fixture.position.set(x, 14.72, z);
+                    scene.add(fixture);
+                }
+            }
+
+            const aisleGlowMat = new THREE.MeshBasicMaterial({ color: 0xffb16b, toneMapped: false });
+            for (const side of [-1, 1]) {
+                for (let r = 0; r < 3; r++) {
+                    const marker = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 1.25), aisleGlowMat);
+                    marker.position.set(side * 7.8, -4.82 + r * 0.88, 12 + r * 7.0);
+                    scene.add(marker);
+                    aisleLights.push(marker);
+                }
+            }
+
+            wallGlowLeft = new THREE.PointLight(0x9b8b78, 0.28, 18, 2);
+            wallGlowRight = new THREE.PointLight(0x9b8b78, 0.28, 18, 2);
+            // Pull both glow lights inward from the side walls and lower them to floor level,
+            // behind the seating area rather than high up on the side walls.
+            wallGlowLeft.position.set(-9, -4.25, 49);
+            wallGlowRight.position.set(9, -4.25, 49);
+            scene.add(wallGlowLeft, wallGlowRight);
+
+            createTheaterSeats();
+        }
+
+        function createTheaterSeats() {
+            // Premium black leather recliners; isolated from the unchanged screen/ScreenX system.
+            const upholstery = new THREE.MeshStandardMaterial({ color: 0x171819, roughness: 0.46, metalness: 0.025 });
+            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x252629, roughness: 0.60, metalness: 0.015 });
+            const seamMat = new THREE.MeshStandardMaterial({ color: 0x3a3b3d, roughness: 0.62, metalness: 0.02 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0x101112, roughness: 0.48, metalness: 0.28 });
+            const cupMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.25, metalness: 0.58 });
+            const riserMat = new THREE.MeshStandardMaterial({ color: 0x202123, roughness: 0.97, metalness: 0.01 });
+            const seatGroup = new THREE.Group();
+            const rows = 3;
+            const seatsPerRow = 5;
+            const seatSpacing = 2.75;
+            const rowSpacing = 5.0;
+
+            for (let r = 0; r < rows; r++) {
+                const zPos = 9.0 + r * rowSpacing;
+                const floorY = -5.0 + r * 0.85;
+                const platformTop = floorY + 0.06;
+                const platformHeight = Math.max(0.06, platformTop + 5.0);
+                const riser = new THREE.Mesh(new THREE.BoxGeometry(15.5, platformHeight, 4.2), riserMat);
+                riser.position.set(0, -5.0 + platformHeight / 2, zPos);
+                riser.receiveShadow = true;
+                seatGroup.add(riser);
+
+                for (let s = 0; s < seatsPerRow; s++) {
+                    const xPos = (s - (seatsPerRow - 1) / 2) * seatSpacing;
+                    const seat = new THREE.Group();
+                    seat.position.set(xPos, floorY, zPos);
+
+                    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.12, 0.82), trimMat);
+                    foot.position.set(0, 0.12, 0);
+                    seat.add(foot);
+                    const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.40, 0.28), trimMat);
+                    pedestal.position.set(0, 0.37, 0.02);
+                    seat.add(pedestal);
+
+                    const base = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.32, 1.30), upholstery);
+                    base.position.set(0, 0.65, -0.08);
+                    seat.add(base);
+                    const topCushion = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.16, 1.12), cushionMat);
+                    topCushion.position.set(0, 0.85, -0.12);
+                    seat.add(topCushion);
+                    const seam = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.012, 0.022), seamMat);
+                    seam.position.set(0, 0.94, -0.20);
+                    seat.add(seam);
+
+                    const back = new THREE.Mesh(new THREE.BoxGeometry(1.48, 1.42, 0.30), upholstery);
+                    back.position.set(0, 1.50, 0.50);
+                    back.rotation.x = -0.09;
+                    seat.add(back);
+                    const backPad = new THREE.Mesh(new THREE.BoxGeometry(1.26, 1.06, 0.12), cushionMat);
+                    backPad.position.set(0, 1.51, 0.31);
+                    backPad.rotation.x = -0.09;
+                    seat.add(backPad);
+                    const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.38, 0.29), cushionMat);
+                    headrest.position.set(0, 2.20, 0.43);
+                    headrest.rotation.x = -0.08;
+                    seat.add(headrest);
+
+                    for (const side of [-1, 1]) {
+                        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.42, 1.08), upholstery);
+                        arm.position.set(side * 0.86, 0.96, -0.02);
+                        seat.add(arm);
+                        const armTop = new THREE.Mesh(new THREE.BoxGeometry(0.245, 0.065, 0.96), cushionMat);
+                        armTop.position.set(side * 0.86, 1.20, -0.03);
+                        seat.add(armTop);
+                        const cupHolder = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.09, 12), cupMat);
+                        cupHolder.position.set(side * 0.86, 1.29, -0.33);
+                        seat.add(cupHolder);
+                    }
+
+                    const frontTrim = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.025, 0.03), seamMat);
+                    frontTrim.position.set(0, 0.92, -0.73);
+                    seat.add(frontTrim);
+                    seatGroup.add(seat);
+                }
+            }
+            scene.add(seatGroup);
+        }
+        // --- 3. Advanced Subdivided IMAX Screen & Frame Geometry ---
+        function createIMAXScreen() {
+            if (screenMesh) {
+                scene.remove(screenMesh);
+                if (screenGeometry) screenGeometry.dispose();
+                if (screenMaterial) screenMaterial.dispose();
+            }
+            if (screenFrameMesh) {
+                scene.remove(screenFrameMesh);
+                if (screenFrameMesh.geometry) screenFrameMesh.geometry.dispose();
+            }
+            if (screenRimGlowMesh) {
+                scene.remove(screenRimGlowMesh);
+                if (screenRimGlowMesh.geometry) screenRimGlowMesh.geometry.dispose();
+            }
+            if (videoTexture) videoTexture.dispose();
+            if (screenXGroup) {
+                scene.remove(screenXGroup);
+                screenXGroup.traverse(obj => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                        mats.forEach(m => { if (m.map && m.map !== videoTexture) m.map.dispose(); m.dispose(); });
+                    }
+                });
+            }
+            screenXMaterials = [];
+            const screenHeight = 14 * state.scale;
+            const screenWidth = screenHeight * state.aspectRatio;
+
+            // Highly subdivided geometry for stable depth displacement & curved geometry
+            const segmentsX = 120;
+            const segmentsY = 60;
+            screenGeometry = new THREE.PlaneGeometry(screenWidth, screenHeight, segmentsX, segmentsY);
+            
+            // Apply base mathematical IMAX curvature
+            applyScreenCurvatureGeometry(screenGeometry, screenWidth, state.curvature);
+
+            videoTexture = new THREE.VideoTexture(video);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+            videoTexture.format = THREE.RGBAFormat;
+            videoTexture.colorSpace = THREE.SRGBColorSpace || undefined;
+            videoTexture.generateMipmaps = false;
+            videoTexture.wrapS = THREE.ClampToEdgeWrapping;
+            if (state.screenX) { videoTexture.repeat.set(0.5, 1); videoTexture.offset.set(0.25, 0); }
+            else { videoTexture.repeat.set(1, 1); videoTexture.offset.set(0, 0); }
+
+            screenMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false });
+            screenMesh = new THREE.Mesh(screenGeometry, screenMaterial);
+            screenMesh.frustumCulled = false;
+            const centerY = screenHeight / 2 - 2;
+            screenMesh.position.set(0, centerY, 0);
+            scene.add(screenMesh);
+
+            // Realistic Screen Frame Backing
+            const frameGeo = new THREE.BoxGeometry(screenWidth + 0.6, screenHeight + 0.6, 0.4);
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x05070a, roughness: 0.95 });
+            screenFrameMesh = new THREE.Mesh(frameGeo, frameMat);
+            screenFrameMesh.position.set(0, centerY, -6.0);
+            scene.add(screenFrameMesh);
+
+            // Screen rim glow: preserve the original plane size, depth, colour-following,
+            // additive blending and toggle behaviour. Z=-1.5 matches the original placement
+            // relative to the screen (screen plane at Z=0); values are Three.js world units.
+            const rimGeo = new THREE.PlaneGeometry(screenWidth + 2.0, screenHeight + 2.0);
+            const rimMat = new THREE.MeshBasicMaterial({
+                color: 0x3b82f6,
+                transparent: true,
+                opacity: state.glowEnabled ? 0.35 : 0.0,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthTest: true,
+                depthWrite: false,
+                toneMapped: false
+            });
+            screenRimGlowMesh = new THREE.Mesh(rimGeo, rimMat);
+            screenRimGlowMesh.position.set(0, centerY, -1.5);
+            scene.add(screenRimGlowMesh);
+
+            if (state.screenX) createScreenXPanels(screenWidth, screenHeight);
+            updateDepthMeshDisplacement();
+            updateStatus();
+        }
+
+        function updateBackWallCurvature() {
+            if (!backWallGeometry || !backWallGeometry.attributes.position) return;
+            const positions = backWallGeometry.attributes.position;
+            // Fixed room-wall bow: endpoints stay at the side-wall junctions (z=-3.075),
+            // while the center bows at least 3.15 units farther back, safely behind the
+            // screen frame at z=-6. The curvature control can deepen this bow slightly.
+            const sagitta = 3.15 + Math.abs(state.curvature) * 0.5;
+            for (let i = 0; i < positions.count; i++) {
+                const x = positions.getX(i);
+                const normalizedX = x / 26;
+                positions.setZ(i, -sagitta * (1 - normalizedX * normalizedX));
+            }
+            positions.needsUpdate = true;
+            backWallGeometry.computeVertexNormals();
+            backWallGeometry.computeBoundingSphere();
+        }
+
+        function applyScreenCurvatureGeometry(geometry, width, curvatureVal) {
+            const pos = geometry.attributes.position;
+            const sagitta = Math.abs(curvatureVal) * 3.2;
+            const curveSign = curvatureVal > 0 ? 1 : -1;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const normalizedX = x / (width / 2);
+                const zOffset = sagitta * normalizedX * normalizedX;
+                pos.setZ(i, Math.abs(curvatureVal) < 0.005 ? 0 : curveSign * zOffset);
+            }
+            geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+        }
+
+        function createScreenXPanels(screenWidth, screenHeight) {
+            screenXGroup = new THREE.Group();
+            const panelWidth = screenWidth * 0.58;
+            const panelHeight = screenHeight;
+            const angle = 0.58;
+            const centerY = screenHeight / 2 - 2;
+            [-1, 1].forEach(side => {
+                const geo = new THREE.PlaneGeometry(panelWidth, panelHeight, 32, 1);
+                const pos = geo.attributes.position;
+                const panelCurveDirection = state.curvature > 0 ? 1 : -1;
+                const panelCurveStrength = Math.abs(state.curvature) * 0.34;
+                for (let i = 0; i < pos.count; i++) {
+                    const x = pos.getX(i);
+                    const normalizedX = x / (panelWidth / 2);
+                    pos.setZ(i, Math.abs(state.curvature) < 0.005 ? 0 : panelCurveDirection * panelCurveStrength * normalizedX * normalizedX);
+                }
+                geo.computeVertexNormals();
+                const tex = videoTexture.clone();
+                tex.needsUpdate = true;
+                tex.repeat.set(0.25, 1);
+                tex.offset.set(side < 0 ? 0 : 0.75, 0);
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false });
+                screenXMaterials.push(mat);
+                const panel = new THREE.Mesh(geo, mat);
+                panel.position.set(side * (screenWidth / 2 + panelWidth * 0.40), centerY, -0.35);
+                panel.rotation.y = side < 0 ? angle : -angle;
+                screenXGroup.add(panel);
+            });
+            scene.add(screenXGroup);
+        }
+        // --- 4. Advanced Modular Depth & Dynamic Parallax System ---
+        function updateDepthMeshDisplacement() {
+            if (!screenGeometry || !screenGeometry.attributes.position) return;
+
+            const pos = screenGeometry.attributes.position;
+            const height = 14 * state.scale;
+            const width = height * state.aspectRatio;
+            const sagitta = Math.abs(state.curvature) * 3.2;
+            const curveSign = state.curvature > 0 ? 1 : -1;
+            const camX = camera ? camera.position.x : 0;
+            // Keep parallax subtle and bounded so camera movement cannot make the mesh snap.
+            const parallaxFactor = THREE.MathUtils.clamp(camX / 30, -1, 1) * state.depthStrength;
+
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                const normalizedX = THREE.MathUtils.clamp(x / (width / 2), -1, 1);
+                const normalizedY = THREE.MathUtils.clamp(y / (height / 2), -1, 1);
+                const baseZ = Math.abs(state.curvature) < 0.005 ? 0 : curveSign * sagitta * normalizedX * normalizedX;
+                let depthVal = 0;
+
+                if (state.depthMode === 'parallax') {
+                    // Stable, edge-tapered displacement avoids pinched or flickering screen edges.
+                    const edgeFade = Math.sin((1 - Math.abs(normalizedX)) * Math.PI * 0.5);
+                    depthVal = Math.sin(normalizedX * Math.PI) * parallaxFactor * 0.7 * edgeFade;
+                } else if ((state.depthMode === 'depthMap' || state.depthMode === 'aiVideoDepth') && depthDataArray) {
+                    const colIdx = Math.min(63, Math.max(0, Math.floor((normalizedX * 0.5 + 0.5) * 64)));
+                    const rowIdx = Math.min(35, Math.max(0, Math.floor((0.5 - normalizedY * 0.5) * 36)));
+                    const sample = depthDataArray[rowIdx * 64 + colIdx];
+                    const luma = sample === undefined ? 128 : sample; // Preserve true black (0) pixels.
+                    // Brightness is a depth cue, not a white overlay. Increase displacement so the
+                    // uploaded map is visibly expressed by the screen surface while retaining edge falloff.
+                    const edgeFadeX = Math.sin((1 - Math.abs(normalizedX)) * Math.PI * 0.5);
+                    const edgeFadeY = Math.sin((1 - Math.abs(normalizedY)) * Math.PI * 0.5);
+                    depthVal = THREE.MathUtils.clamp(((luma - 128) / 127) * state.depthStrength * 1.5, -1.6, 1.6) * edgeFadeX * edgeFadeY;
+                }
+
+                pos.setZ(i, baseZ + depthVal);
+            }
+
+            // MeshBasicMaterial does not use normals; skipping their recalculation saves CPU every camera update.
+            pos.needsUpdate = true;
+            screenGeometry.computeBoundingSphere();
+        }
+
+        function analyzeVideoDepthMap(timestamp) {
+            if (state.depthMode !== 'depthMap' || video.paused || video.readyState < 2) return;
+            // Luma depth does not need to be recalculated at display refresh rate.
+            const now = Number.isFinite(timestamp) ? timestamp : performance.now();
+            if (now - lastDepthAnalysisTime < 100) return; // about 10 analyses per second
+            lastDepthAnalysisTime = now;
+            try {
+                depthCtx.drawImage(video, 0, 0, depthCanvas.width, depthCanvas.height);
+                const imgData = depthCtx.getImageData(0, 0, depthCanvas.width, depthCanvas.height).data;
+                const pixelCount = depthCanvas.width * depthCanvas.height;
+                if (!depthDataArray || depthDataArray.length !== pixelCount) {
+                    depthDataArray = new Uint8Array(pixelCount);
+                    depthAnalysisTarget = new Uint8Array(pixelCount);
+                    depthDataArray.fill(128);
+                }
+                for (let i = 0, p = 0; i < imgData.length; i += 4, p++) {
+                    const luma = 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
+                    depthAnalysisTarget[p] = luma;
+                    // Temporal low-pass filtering reduces frame-to-frame brightness shimmer.
+                    depthDataArray[p] = Math.round(depthDataArray[p] * 0.72 + depthAnalysisTarget[p] * 0.28);
+                }
+                updateDepthMeshDisplacement();
+            } catch (e) { /* Fallback gracefully on CORS restrictions */ }
+        }
+
+        // Dust particles, projector light rays, and demo 3D objects have been removed.
+        // Keep these no-op functions because the main initialization/animation flow calls them.
+        function initCinematicEffects() {}
+        function updateCinematicEffects(time) {}
+
+        function setScreenXMode(enabled) {
+            state.screenX = !!enabled;
+            const btn = document.getElementById('btn-screenx');
+            btn.textContent = state.screenX ? 'IMAX + SCREENX' : 'IMAX ONLY';
+            btn.setAttribute('aria-pressed', String(state.screenX));
+            btn.classList.toggle('control-active', state.screenX);
+            document.getElementById('mode-description').textContent = state.screenX ? 'Center + left/right side-wall projection' : 'Center screen projection only';
+            createIMAXScreen();
+        }
+
+        function updateStatus(message) {
+            const pill = document.getElementById('status-pill');
+            if (!pill) return;
+            pill.textContent = message || (state.screenX ? 'READY · IMAX + SCREENX' : 'READY · IMAX ONLY');
+            pill.classList.toggle('text-cyan-300', state.screenX);
+            pill.classList.toggle('text-emerald-300', !state.screenX);
+        }
+        // --- 6. Video Player & Ambilight Engine ---
+        // Bright premium auditorium before playback; immersive dark mode during playback.
+        function setCinemaLighting(isPlaying) {
+            cinemaPlayingMode = !!isPlaying;
+            if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.42 : 1.05;
+            if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.14 : 0.78;
+            if (spotLight) spotLight.intensity = cinemaPlayingMode ? Math.max(0.28, state.lightIntensity * 0.85) : 0.55;
+            if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode ? 0.14 : 0.32;
+            if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode ? 0.14 : 0.32;
+            aisleLights.forEach(light => {
+                if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xb77d4d : 0xffb16b);
+            });
+            if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.92 : 1.08;
+        }
+
+        function initVideoPlayer() {
+            // Touch: tap the cinema area to hide the controls; tap again to show them.
+            // Mouse movement and keyboard activity reveal controls on desktop. Do not let
+            // touch-generated pointermove events immediately undo a screen-tap hide.
+            const playerBar = document.getElementById('player-bar');
+            let playerHideTimer = null;
+            const hidePlayerControls = () => {
+                if (playerHideTimer) clearTimeout(playerHideTimer);
+                if (playerBar.contains(document.activeElement)) document.activeElement.blur();
+                playerBar.classList.add('player-controls-hidden');
+                document.body.classList.add('cinema-ui-hidden');
+            };
+            const showPlayerControls = () => {
+                document.body.classList.remove('cinema-ui-hidden');
+                playerBar.classList.remove('player-controls-hidden');
+                if (playerHideTimer) clearTimeout(playerHideTimer);
+                playerHideTimer = setTimeout(() => {
+                    if (!playerBar.contains(document.activeElement)) hidePlayerControls();
+                }, 5000);
+            };
+            document.addEventListener('pointerdown', (e) => {
+                const target = e.target;
+                const container = document.getElementById('canvas-container');
+                const isCanvasTap = target === container || (target.tagName === 'CANVAS' && target.parentElement === container);
+                if (isCanvasTap) {
+                    if (document.body.classList.contains('cinema-ui-hidden')) showPlayerControls();
+                    else hidePlayerControls();
+                    return;
+                }
+                if (playerBar.contains(target) || (target.closest && target.closest('button, input, select, label, #controls-panel, #quick-controls, .cinema-side-tools, .cinema-icon-tool'))) {
+                    showPlayerControls();
+                    return;
+                }
+                if (document.body.classList.contains('cinema-ui-hidden')) showPlayerControls();
+            }, {passive:true});
+            document.addEventListener('pointermove', (e) => {
+                if (e.pointerType !== 'touch') showPlayerControls();
+            }, {passive:true});
+            document.addEventListener('mousemove', showPlayerControls, {passive:true});
+            document.addEventListener('keydown', showPlayerControls);
+            playerBar.addEventListener('pointermove', (e) => {
+                if (e.pointerType !== 'touch') showPlayerControls();
+            }, {passive:true});
+            showPlayerControls();
+            setCinemaLighting(false);
+            video.src = SAMPLES.sample1;
+            video.volume = 0.8;
+            video.addEventListener('loadedmetadata', () => {
+                timeTotal.textContent = formatTime(video.duration || 0);
+                seekBar.value = 0;
+                updateStatus('VIDEO READY');
+                if (videoTexture) videoTexture.needsUpdate = true;
+            });
+            video.addEventListener('playing', () => { setInteriorBlackMode(true); setCinemaLighting(true); updatePlayButtonUI(true); updateStatus(state.screenX ? 'PLAYING · IMAX + SCREENX' : 'PLAYING · IMAX ONLY'); });
+            video.addEventListener('pause', () => { setInteriorBlackMode(false); setCinemaLighting(false); updatePlayButtonUI(false); updateStatus(state.screenX ? 'PAUSED · IMAX + SCREENX' : 'PAUSED · IMAX ONLY'); });
+            video.addEventListener('error', () => updateStatus('VIDEO ERROR · TRY UPLOAD'));
+
+            btnPlay.addEventListener('click', togglePlay);
+            video.addEventListener('click', togglePlay);
+            document.getElementById('btn-restart').addEventListener('click', () => {
+                try { video.currentTime = 0; } catch (_) {}
+                video.play().then(() => updatePlayButtonUI(true)).catch(() => updateStatus('RESTARTED · TAP PLAY'));
+            });
+            video.addEventListener('ended', () => { setInteriorBlackMode(false); setCinemaLighting(false); updatePlayButtonUI(false); });
+
+            video.addEventListener('timeupdate', () => {
+                if (!isNaN(video.duration)) {
+                    const progress = (video.currentTime / video.duration) * 100;
+                    seekBar.value = progress;
+                    timeCurrent.textContent = formatTime(video.currentTime);
+                    timeTotal.textContent = formatTime(video.duration);
+                }
+            });
+
+            seekBar.addEventListener('input', () => {
+                if (Number.isFinite(video.duration) && video.duration > 0) {
+                    const targetTime = (seekBar.value / 100) * video.duration;
+                    video.currentTime = targetTime;
+                }
+            });
+
+            btnMute.addEventListener('click', () => {
+                video.muted = !video.muted;
+                btnMute.innerHTML = video.muted ? 
+                    '<i class="fa-solid fa-volume-xmark text-red-400"></i>' : 
+                    '<i class="fa-solid fa-volume-high"></i>';
+            });
+
+            volumeBar.addEventListener('input', () => {
+                video.volume = volumeBar.value;
+                video.muted = (video.volume === 0);
+            });
+
+            const playerPanel = document.getElementById('vlc-key-panel');
+            function seekBy(seconds) { if (Number.isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds)); }
+            function setVolume(value) { video.volume = Math.max(0, Math.min(1, value)); volumeBar.value = video.volume; if (video.volume > 0) video.muted = false; }
+            function setSpeed(value) { video.playbackRate = Math.max(0.25, Math.min(4, value)); updateStatus('PLAYBACK SPEED · ' + video.playbackRate.toFixed(2) + '×'); }
+            function playerAction(action, percent) {
+                switch (action) {
+                    case 'play': togglePlay(); break;
+                    case 'stop': video.pause(); video.currentTime = 0; break;
+                    case 'back5': seekBy(-5); break; case 'forward5': seekBy(5); break;
+                    case 'back60': seekBy(-60); break; case 'forward60': seekBy(60); break;
+                    case 'mute': btnMute.click(); break;
+                    case 'volDown': setVolume(video.volume - 0.05); break; case 'volUp': setVolume(video.volume + 0.05); break;
+                    case 'speedDown': setSpeed(video.playbackRate - 0.25); break; case 'speedUp': setSpeed(video.playbackRate + 0.25); break; case 'speedReset': setSpeed(1); break;
+                    case 'start': video.currentTime = 0; break; case 'end': if (Number.isFinite(video.duration)) video.currentTime = video.duration; break;
+                    case 'fullscreen': document.getElementById('btn-fullscreen').click(); break;
+                    case 'jump': if (Number.isFinite(video.duration)) video.currentTime = video.duration * (Number(percent) / 100); break;
+                    case 'subtitles': {
+                        let tracks = video.textTracks;
+                        let hasTracks = tracks && tracks.length > 0;
+                        if (!hasTracks) { updateStatus('SUBTITLES · LOAD A VIDEO WITH CAPTIONS'); break; }
+                        let turnOn = !Array.from(tracks).some(t => t.mode === 'showing');
+                        Array.from(tracks).forEach(t => t.mode = turnOn ? 'showing' : 'hidden');
+                        const b = playerPanel.querySelector('[data-player-action="subtitles"]');
+                        if (b) b.setAttribute('aria-pressed', String(turnOn));
+                        updateStatus(turnOn ? 'SUBTITLES ON' : 'SUBTITLES OFF'); break;
+                    }
+                    case 'repeat': video.loop = !video.loop; {
+                        const b = playerPanel.querySelector('[data-player-action="repeat"]');
+                        if (b) b.setAttribute('aria-pressed', String(video.loop));
+                        updateStatus(video.loop ? 'REPEAT ON' : 'REPEAT OFF'); break;
+                    }
+                    case 'more': updateStatus('MORE OPTIONS · USE CONTROLS PANEL'); break;
+                    case 'help': updateStatus('KEYS: Space play/pause · ←/→ 5s · Ctrl+←/→ 60s · ↑/↓ volume · M mute · [/] speed · F fullscreen · S stop'); break;
+                }
+            }
+            playerPanel.addEventListener('click', (e) => { const b = e.target.closest('[data-player-action]'); if (b) playerAction(b.dataset.playerAction, b.dataset.percent); });
+            document.addEventListener('keydown', (e) => {
+                const el = e.target; const tag = el && el.tagName ? el.tagName.toLowerCase() : '';
+                if (['input','textarea','select'].includes(tag) || (el && el.isContentEditable) || e.altKey || e.metaKey) return;
+                if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
+                if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); seekBy(e.key === 'ArrowLeft' ? -60 : 60); return; }
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); seekBy(e.key === 'ArrowLeft' ? -5 : 5); return; }
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setVolume(video.volume + (e.key === 'ArrowUp' ? 0.05 : -0.05)); return; }
+                if (e.key.toLowerCase() === 'm') playerAction('mute');
+                else if (e.key.toLowerCase() === 'f') document.getElementById('btn-fullscreen').click();
+                else if (e.key.toLowerCase() === 's') playerAction('stop');
+                else if (e.key === '[') playerAction('speedDown'); else if (e.key === ']') playerAction('speedUp'); else if (e.key === '\\') playerAction('speedReset');
+                else if (e.key === 'Home') { e.preventDefault(); playerAction('start'); } else if (e.key === 'End') { e.preventDefault(); playerAction('end'); }
+                else if (e.key === '5' && Number.isFinite(video.duration)) { video.currentTime = video.duration * 0.5; }
+                else if (e.key === '?') playerAction('help');
+            });
+
+            videoFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    videoDepthAnalysisCancelled = true;
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
+                    if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+                    currentObjectUrl = URL.createObjectURL(file);
+                    video.src = currentObjectUrl;
+                    video.load();
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
+                    const readyButton = document.getElementById('btn-play-when-ready');
+                    if (readyButton) { readyButton.disabled = true; readyButton.style.opacity = '0.5'; readyButton.style.cursor = 'not-allowed'; }
+                    if (state.depthMode === 'aiVideoDepth') {
+                        video.pause();
+                        document.getElementById('ai-depth-status').textContent = 'Video loaded. Tap Analyze Video; playback will be available when analysis finishes.';
+                        updateStatus('VIDEO LOADED · ANALYZE DEPTH FIRST');
+                    } else {
+                        video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
+                    }
+                }
+            });
+        }
+
+        function togglePlay() {
+            if (state.depthMode === 'aiVideoDepth' && !videoDepthAnalysisReady) {
+                document.getElementById('ai-depth-status').textContent = 'Analyze the video first, then press Play when ready.';
+                return;
+            }
+            if (video.paused) {
+                video.play().then(() => updatePlayButtonUI(true)).catch(err => console.log("Playback interaction required: ", err));
+            } else {
+                video.pause();
+                updatePlayButtonUI(false);
+            }
+        }
 
 
+        // Movie mode: black out the auditorium while keeping the main image and ScreenX picture visible.
+        const interiorBlackRestore = new Map();
+        function isDescendantOf(object, ancestor) {
+            let node = object;
+            while (node) { if (node === ancestor) return true; node = node.parent; }
+            return false;
+        }
+        function setInteriorBlackMode(enabled) {
+            if (!scene) return;
+            if (enabled) {
+                scene.traverse((object) => {
+                    // Preserve the actual movie surfaces and rim-glow effect.
+                    const isDisplay = isDescendantOf(object, screenMesh) ||
+                        isDescendantOf(object, screenXGroup);
+                    if (object.isLight) {
+                        if (!interiorBlackRestore.has(object)) interiorBlackRestore.set(object, { kind: 'light', intensity: object.intensity });
+                        object.intensity = 0;
+                    } else if (object.isMesh && !isDisplay && object !== screenRimGlowMesh) {
+                        if (!interiorBlackRestore.has(object)) {
+                            const original = object.material;
+                            const dark = Array.isArray(original) ? original.map(m => m.clone()) : original.clone();
+                            const darkMats = Array.isArray(dark) ? dark : [dark];
+                            darkMats.forEach((m) => {
+                                if (m.color) m.color.set(0x000000);
+                                if (m.emissive) m.emissive.set(0x000000);
+                                if ('emissiveIntensity' in m) m.emissiveIntensity = 0;
+                            });
+                            interiorBlackRestore.set(object, { kind: 'mesh', material: original, darkMaterial: dark });
+                            object.material = dark;
+                        }
+                    }
+                });
+
+            } else {
+                for (const [object, saved] of interiorBlackRestore.entries()) {
+                    if (saved.kind === 'light') object.intensity = saved.intensity;
+                    else if (saved.kind === 'mesh') {
+                        object.material = saved.material;
+                        if (Array.isArray(saved.darkMaterial)) saved.darkMaterial.forEach(m => m.dispose());
+                        else saved.darkMaterial.dispose();
+                    }
+                }
+                interiorBlackRestore.clear();
+
+            }
+        }
+
+        function updatePlayButtonUI(isPlaying) {
+            // Keep both the small blue play button and the large white reference button in sync.
+            btnPlay.innerHTML = isPlaying ?
+                '<i class="fa-solid fa-pause text-base"></i>' :
+                '<i class="fa-solid fa-play text-base"></i>';
+            const refPlayIcon = document.getElementById('ref-play-icon');
+            const refPlayButton = document.querySelector('#vlc-key-panel [data-player-action="play"]');
+            if (refPlayIcon) refPlayIcon.className = isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play';
+            if (refPlayButton) {
+                refPlayButton.setAttribute('aria-label', isPlaying ? 'Pause video' : 'Play video');
+                refPlayButton.setAttribute('title', isPlaying ? 'Pause' : 'Play');
+                refPlayButton.setAttribute('aria-pressed', String(!!isPlaying));
+            }
+        }
+
+        // Realtime Dynamic Ambilight Engine
+        function updateDynamicAmbilight() {
+            frameCounter++;
+            if (frameCounter % 6 !== 0) return;
+            if (video.paused || video.ended || video.readyState < 2) return;
+
+            try {
+                analysisCtx.drawImage(video, 0, 0, analysisCanvas.width, analysisCanvas.height);
+                const frameData = analysisCtx.getImageData(0, 0, analysisCanvas.width, analysisCanvas.height).data;
+
+                let r = 0, g = 0, b = 0;
+                const totalPixels = frameData.length / 4;
+
+                for (let i = 0; i < frameData.length; i += 4) {
+                    r += frameData[i];
+                    g += frameData[i + 1];
+                    b += frameData[i + 2];
+                }
+
+                r = Math.floor(r / totalPixels);
+                g = Math.floor(g / totalPixels);
+                b = Math.floor(b / totalPixels);
+
+                const targetColor = new THREE.Color(`rgb(${r}, ${g}, ${b})`);
+                spotLight.color.lerp(targetColor, 0.1);
+                spotLight.intensity = state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2);
+                if (wallGlowLeft) {
+                    wallGlowLeft.color.lerp(targetColor, 0.08);
+                    wallGlowRight.color.lerp(targetColor, 0.08);
+                    const wallIntensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92);
+                    wallGlowLeft.intensity = wallIntensity;
+                    wallGlowRight.intensity = wallIntensity;
+                }
+                aisleLights.forEach(light => { light.material.color.lerp(targetColor, 0.025); });
+
+            } catch (e) { /* CORS fallback */ }
+        }
+
+        // --- 7. UI Controls & Event Handling ---
+        function setupUIEventListeners() {
+            const btnToggleUI = document.getElementById('btn-toggle-ui');
+            const btnClosePanel = document.getElementById('btn-close-panel');
+            const btnGlow = document.getElementById('btn-glow-toggle');
+
+            // Relocate the existing controls (not clones) so their original handlers/state remain intact.
+            const quickControls = document.getElementById('quick-controls');
+            const seatWrap = document.getElementById('btn-choose-seat').parentElement;
+            document.getElementById('side-seat-slot').appendChild(seatWrap);
+            document.getElementById('side-rim-slot').appendChild(btnGlow);
+            // Keep the original ratio controls hidden in their source wrapper; side icons call them directly.
+            document.getElementById('btn-choose-seat').insertAdjacentHTML('beforeend', '<span class="tool-label">Seat No.</span>');
+            btnGlow.insertAdjacentHTML('beforeend', '<span class="tool-label">Rim Light Glow</span>');
+            quickControls.style.display = 'none';
+
+            // Side shortcuts invoke the original controls, preserving their existing behavior.
+            const sideRatioToggle = document.getElementById('side-ratio-toggle');
+            function syncSideRatioToggle() {
+                const ratioLabel = state.aspectRatio >= 1.6 ? '1.90:1' : '1.43:1';
+                sideRatioToggle.querySelector('.tool-label').textContent = 'Aspect ' + ratioLabel;
+                sideRatioToggle.title = 'Aspect Ratio ' + ratioLabel + ' (tap to toggle)';
+                sideRatioToggle.setAttribute('aria-label', 'Current aspect ratio ' + ratioLabel + '. Tap to toggle');
+            }
+            sideRatioToggle.addEventListener('click', () => {
+                const nextRatio = state.aspectRatio >= 1.6 ? '1.43' : '1.90';
+                document.querySelector('.btn-aspect[data-ratio="' + nextRatio + '"]').click();
+            });
+            syncSideRatioToggle();
+            document.getElementById('side-imax-toggle').addEventListener('click', () => document.getElementById('btn-screenx').click());
+            document.getElementById('side-fit-toggle').addEventListener('click', () => document.getElementById('btn-edge-fit').click());
+            document.getElementById('side-theme-toggle').addEventListener('click', () => {
+                if (state.themeMode === 'dark') document.getElementById('btn-theme-glow').click();
+                else document.getElementById('btn-theme-dark').click();
+                const glowMode = state.themeMode === 'glow';
+                const themeButton = document.getElementById('side-theme-toggle');
+                themeButton.querySelector('i').className = glowMode ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+                themeButton.querySelector('.tool-label').textContent = glowMode ? 'Full Ambilight' : 'Dark Cinema';
+            });
+            // Tapping an icon performs its action and reveals the label; hover works on desktop.
+            document.querySelectorAll('.cinema-side-tools button, .cinema-icon-tool').forEach(tool => tool.addEventListener('click', () => {
+                tool.classList.add('label-open');
+                window.setTimeout(() => tool.classList.remove('label-open'), 1500);
+            }));
+            // The old eye / eye-slash toolbar visibility buttons are intentionally removed.
+            const restoreToolbar = document.getElementById('btn-restore-toolbar');
+            if (restoreToolbar) restoreToolbar.remove();
+            const oldHideToolbar = document.getElementById('btn-hide-toolbar');
+            if (oldHideToolbar) oldHideToolbar.remove();
+
+            btnGlow.addEventListener('click', () => {
+                state.glowEnabled = !state.glowEnabled;
+                btnGlow.querySelector('#glow-toggle-text').textContent = state.glowEnabled ? 'Rim Glow: ON' : 'Rim Glow: OFF';
+                btnGlow.setAttribute('aria-pressed', String(state.glowEnabled));
+                btnGlow.classList.toggle('bg-indigo-600/20', state.glowEnabled);
+                btnGlow.classList.toggle('text-indigo-300', state.glowEnabled);
+                btnGlow.classList.toggle('text-slate-400', !state.glowEnabled);
+                if (screenRimGlowMesh) screenRimGlowMesh.material.opacity = state.glowEnabled ? 0.35 : 0;
+                saveSettings();
+            });
+
+            btnToggleUI.addEventListener('click', () => {
+                controlsPanel.classList.toggle('translate-x-0');
+                controlsPanel.classList.toggle('translate-x-full');
+            });
+
+            btnClosePanel.addEventListener('click', () => {
+                controlsPanel.classList.add('translate-x-full');
+            });
+
+            document.getElementById('btn-screenx').addEventListener('click', () => { setScreenXMode(!state.screenX); saveSettings(); });
+
+            // AI video depth is precomputed from sampled frames before playback. The frame cache
+            // keeps inference out of the real-time render loop; mobile devices analyze at most 120 frames.
+            const analyzeVideoDepthButton = document.getElementById('btn-analyze-video-depth');
+            const cancelVideoDepthButton = document.getElementById('btn-cancel-video-analysis');
+            const playWhenReadyButton = document.getElementById('btn-play-when-ready');
+            const videoDepthProgressWrap = document.getElementById('video-depth-progress-wrap');
+            const videoDepthProgress = document.getElementById('video-depth-progress');
+            const videoDepthProgressLabel = document.getElementById('video-depth-progress-label');
+
+            function setVideoDepthProgress(done, total, message) {
+                const percent = total > 0 ? Math.round(done / total * 100) : 0;
+                videoDepthProgress.style.width = percent + '%';
+                videoDepthProgressLabel.textContent = message || (percent + '% · ' + done + '/' + total + ' frames');
+            }
+
+            function setPlayWhenReadyEnabled(enabled) {
+                playWhenReadyButton.disabled = !enabled;
+                playWhenReadyButton.style.opacity = enabled ? '1' : '0.5';
+                playWhenReadyButton.style.cursor = enabled ? 'pointer' : 'not-allowed';
+            }
+
+            function setAnalysisBusy(busy) {
+                analyzeVideoDepthButton.disabled = busy;
+                analyzeVideoDepthButton.style.opacity = busy ? '0.5' : '1';
+                cancelVideoDepthButton.hidden = !busy;
+                cancelVideoDepthButton.disabled = !busy;
+                cancelVideoDepthButton.style.opacity = busy ? '1' : '0.5';
+            }
+
+            cancelVideoDepthButton.addEventListener('click', () => {
+                if (!videoDepthAnalysisInProgress) return;
+                videoDepthAnalysisCancelled = true;
+                cancelVideoDepthButton.disabled = true;
+                cancelVideoDepthButton.textContent = 'Cancelling…';
+                document.getElementById('ai-depth-status').textContent = 'Cancelling analysis safely…';
+            });
+
+            function waitForVideoEvent(el, eventName, timeoutMs = 15000) {
+                return new Promise((resolve, reject) => {
+                    let timer;
+                    const cleanup = () => {
+                        el.removeEventListener(eventName, onEvent);
+                        el.removeEventListener('error', onError);
+                        if (timer) clearTimeout(timer);
+                    };
+                    const onEvent = () => { cleanup(); resolve(); };
+                    const onError = () => { cleanup(); reject(new Error('Could not read video frames. Check that the video is supported and loaded.')); };
+                    el.addEventListener(eventName, onEvent, { once: true });
+                    el.addEventListener('error', onError, { once: true });
+                    timer = setTimeout(() => { cleanup(); reject(new Error('Timed out while loading/seeking the video. Try a shorter or locally stored video.')); }, timeoutMs);
+                });
+            }
+
+            async function analyzeCurrentVideoForDepth() {
+                const status = document.getElementById('ai-depth-status');
+                if (videoDepthAnalysisInProgress) return;
+                if (!video.currentSrc && !video.src) {
+                    status.textContent = 'Upload or load a video first.';
+                    videoFileInput.click();
+                    return;
+                }
+                if (!Number.isFinite(video.duration) || video.duration <= 0) {
+                    status.textContent = 'Wait until video metadata is loaded, then analyze again.';
+                    return;
+                }
+                videoDepthAnalysisCancelled = false;
+                currentAppliedDepthFrameIndex = -1;
+                videoDepthAnalysisReady = false;
+                videoDepthAnalysisInProgress = true;
+                video.pause();
+                setPlayWhenReadyEnabled(false);
+                setAnalysisBusy(true);
+                cancelVideoDepthButton.textContent = 'Cancel analysis';
+                videoDepthProgressWrap.classList.remove('hidden');
+                videoDepthProgressWrap.classList.add('flex');
+                setVideoDepthProgress(0, 1, 'Loading AI model…');
+                let analysisVideo = null;
+                try {
+                    if (!aiDepthPipelinePromise) aiDepthPipelinePromise = import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
+                    const { pipeline, env } = await aiDepthPipelinePromise;
+                    env.allowLocalModels = false;
+                    if (!window.__imaxDepthEstimator) {
+                        window.__imaxDepthEstimator = await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small', { device: 'webgpu' })
+                            .catch(async () => await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small'));
+                    }
+                    if (videoDepthAnalysisCancelled) throw new Error('Analysis cancelled.');
+                    const estimator = window.__imaxDepthEstimator;
+                    analysisVideo = document.createElement('video');
+                    analysisVideo.muted = true;
+                    analysisVideo.preload = 'auto';
+                    analysisVideo.playsInline = true;
+                    analysisVideo.crossOrigin = 'anonymous';
+                    analysisVideo.src = video.currentSrc || video.src;
+                    analysisVideo.load();
+                    if (analysisVideo.readyState < 1) await waitForVideoEvent(analysisVideo, 'loadedmetadata');
+                    if (analysisVideo.readyState < 2) await waitForVideoEvent(analysisVideo, 'loadeddata');
+                    const duration = Math.min(video.duration, analysisVideo.duration || video.duration);
+                    const frameCount = Math.max(1, Math.min(120, Math.ceil(duration / Math.max(2.5, duration / 120))));
+                    const interval = frameCount > 1 ? duration / (frameCount - 1) : 0;
+                    const sampleCanvas = document.createElement('canvas');
+                    sampleCanvas.width = 320;
+                    sampleCanvas.height = 180;
+                    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+                    const frames = [];
+                    setVideoDepthProgress(0, frameCount, 'AI model ready · analyzing video…');
+                    for (let i = 0; i < frameCount; i++) {
+                        if (videoDepthAnalysisCancelled) throw new Error('Analysis cancelled.');
+                        const target = Math.min(Math.max(0, duration - 0.05), i * interval);
+                        if (Math.abs(analysisVideo.currentTime - target) > 0.03) {
+                            const seeked = waitForVideoEvent(analysisVideo, 'seeked');
+                            analysisVideo.currentTime = target;
+                            await seeked;
+                        }
+                        sampleCtx.drawImage(analysisVideo, 0, 0, sampleCanvas.width, sampleCanvas.height);
+                        const result = await estimator(sampleCanvas);
+                        if (videoDepthAnalysisCancelled) throw new Error('Analysis cancelled.');
+                        // Transformers.js normally returns `depth` as a RawImage (with width/height)
+                        // and `predicted_depth` as a Tensor (with dims). Prefer the image result;
+                        // older code picked the Tensor first and incorrectly rejected valid frames.
+                        const rawDepth = result && result.depth && result.depth.data ? result.depth : null;
+                        const tensorDepth = result && result.predicted_depth && result.predicted_depth.data ? result.predicted_depth : null;
+                        const depth = rawDepth || tensorDepth;
+                        const dims = depth && (depth.dims || depth.shape);
+                        const depthWidth = depth && Number.isFinite(depth.width) ? depth.width : (dims && dims.length ? Number(dims[dims.length - 1]) : 0);
+                        const depthHeight = depth && Number.isFinite(depth.height) ? depth.height : (dims && dims.length > 1 ? Number(dims[dims.length - 2]) : 0);
+                        if (!depth || !depth.data || !depthWidth || !depthHeight || depth.data.length < depthWidth * depthHeight) {
+                            throw new Error('AI returned an unsupported depth output format.');
+                        }
+                        let min = Infinity, max = -Infinity;
+                        for (let j = 0; j < depthWidth * depthHeight; j++) {
+                            const v = Number(depth.data[j]);
+                            if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
+                        }
+                        if (!Number.isFinite(min) || !Number.isFinite(max) || max - min < 1e-8) throw new Error('AI depth range was too small.');
+                        const normalized = new Uint8Array(depthCanvas.width * depthCanvas.height);
+                        for (let y = 0; y < depthCanvas.height; y++) {
+                            const sy = Math.min(depthHeight - 1, Math.floor(y / depthCanvas.height * depthHeight));
+                            for (let x = 0; x < depthCanvas.width; x++) {
+                                const sx = Math.min(depthWidth - 1, Math.floor(x / depthCanvas.width * depthWidth));
+                                const v = Number(depth.data[sy * depthWidth + sx]);
+                                normalized[y * depthCanvas.width + x] = Math.round(255 * (Number.isFinite(v) ? (v - min) / (max - min) : 0.5));
+                            }
+                        }
+                        frames.push({ time: target, data: normalized });
+                        setVideoDepthProgress(i + 1, frameCount);
+                        status.textContent = 'Analyzing video with AI · frame ' + (i + 1) + ' of ' + frameCount + '…';
+                    }
+                    precomputedVideoDepthFrames = frames;
+                    currentAppliedDepthFrameIndex = -1;
+                    videoDepthAnalysisReady = true;
+                    state.depthMode = 'aiVideoDepth';
+                    document.getElementById('select-depth-mode').value = state.depthMode;
+                    applyPrecomputedVideoDepth();
+                    updateDepthMeshDisplacement();
+                    setPlayWhenReadyEnabled(true);
+                    status.textContent = 'Video analysis complete. Press “Play when ready” to start.';
+                    updateStatus('AI VIDEO DEPTH READY');
+                    saveSettings();
+                } catch (err) {
+                    const message = err && err.message ? err.message : 'unknown error';
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
+                    setPlayWhenReadyEnabled(false);
+                    if (videoDepthAnalysisCancelled || /cancelled/i.test(message)) {
+                        status.textContent = 'Analysis cancelled. You can analyze again or use Luma Depth.';
+                        updateStatus('AI VIDEO DEPTH CANCELLED');
+                    } else {
+                        console.error('AI video depth analysis failed:', err);
+                        status.textContent = 'Video analysis failed: ' + message.slice(0, 120) + '. Retry or use Luma Depth as fallback.';
+                        updateStatus('AI VIDEO DEPTH ERROR · FALLBACK AVAILABLE');
+                    }
+                } finally {
+                    if (analysisVideo) { analysisVideo.pause(); analysisVideo.removeAttribute('src'); analysisVideo.load(); }
+                    videoDepthAnalysisInProgress = false;
+                    setAnalysisBusy(false);
+                    cancelVideoDepthButton.textContent = 'Cancel analysis';
+                    videoDepthProgressWrap.classList.remove('flex');
+                    videoDepthProgressWrap.classList.add('hidden');
+                }
+            }
 
 
+            analyzeVideoDepthButton.addEventListener('click', analyzeCurrentVideoForDepth);
+            playWhenReadyButton.addEventListener('click', () => {
+                if (!videoDepthAnalysisReady || videoDepthAnalysisInProgress) return;
+                state.depthMode = 'aiVideoDepth';
+                document.getElementById('select-depth-mode').value = state.depthMode;
+                applyPrecomputedVideoDepth();
+                updateDepthMeshDisplacement();
+                video.play().then(() => updatePlayButtonUI(true)).catch(() => { const statusEl = document.getElementById('ai-depth-status'); statusEl.textContent = 'Analysis is ready. Tap the main Play button to begin playback.'; });
+            });
+
+            document.getElementById('select-depth-mode').addEventListener('change', (e) => {
+                state.depthMode = e.target.value;
+                if (state.depthMode === 'aiVideoDepth' && !videoDepthAnalysisReady) {
+                    document.getElementById('ai-depth-status').textContent = 'Tap Analyze Video to precompute AI depth before playback.';
+                }
+                updateDepthMeshDisplacement();
+                saveSettings();
+                updateStatus('DEPTH MODE · ' + state.depthMode.toUpperCase());
+            });
+
+            const sliderDepthStrength = document.getElementById('slider-depth-strength');
+            sliderDepthStrength.addEventListener('input', (e) => {
+                state.depthStrength = parseFloat(e.target.value);
+                document.getElementById('val-depth-strength').textContent = state.depthStrength.toFixed(2);
+                updateDepthMeshDisplacement();
+                saveSettings();
+            });
+
+            document.getElementById('btn-reset-depth').addEventListener('click', () => {
+                state.depthMode = 'parallax';
+                state.depthStrength = 0.45;
+                state.glowEnabled = true;
+                document.getElementById('select-depth-mode').value = 'parallax';
+                document.getElementById('slider-depth-strength').value = 0.45;
+                document.getElementById('val-depth-strength').textContent = '0.45';
+                btnGlow.textContent = 'ON';
+                updateDepthMeshDisplacement();
+                saveSettings();
+                updateStatus('DEPTH RESET');
+            });
+
+            // Portrait-first Edge Fit
+            document.getElementById('btn-edge-fit').addEventListener('click', () => {
+                state.edgeFit = !state.edgeFit;
+                const fitBtn = document.getElementById('btn-edge-fit');
+                fitBtn.setAttribute('aria-pressed', String(state.edgeFit));
+                fitBtn.classList.toggle('control-active', state.edgeFit);
+                if (state.edgeFit) {
+                    preFitCamera = { position: camera.position.clone(), fov: camera.fov, target: controls.target.clone() };
+                    const screenHeight = 14 * state.scale;
+                    const screenWidth = screenHeight * state.aspectRatio;
+                    // Fit the screen symmetrically: keep camera and target at the same
+                    // height so the view stays level instead of looking down from above.
+                    const viewWidth = Math.max(1, renderer.domElement.clientWidth || window.innerWidth);
+                    const viewHeight = Math.max(1, renderer.domElement.clientHeight || window.innerHeight);
+                    const margin = viewHeight >= viewWidth ? 1.10 : 1.08;
+                    const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+                    const actualAspect = viewWidth / viewHeight;
+                    const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * actualAspect);
+                    const verticalDistance = (screenHeight * margin / 2) / Math.tan(verticalHalfFov);
+                    const horizontalDistance = (screenWidth * margin / 2) / Math.tan(horizontalHalfFov);
+                    const distance = Math.max(verticalDistance, horizontalDistance, 8);
+                    // The cinema screen is centered around Y=5 in the original scene.
+                    // Keep the fit target aligned with the real screen center on both desktop and mobile.
+                    const screenCenterY = 5;
+                    camera.position.set(0, screenCenterY, distance);
+                    controls.target.set(0, screenCenterY, 0);
+                    camera.lookAt(controls.target);
+                    controls.update();
+                    updateStatus('SYMMETRIC FIT · LEVEL VIEW');
+                } else {
+                    if (preFitCamera) {
+                        camera.position.copy(preFitCamera.position);
+                        camera.fov = preFitCamera.fov;
+                        camera.updateProjectionMatrix();
+                        controls.target.copy(preFitCamera.target);
+                        controls.update();
+                    }
+                    updateStatus('EDGE FIT OFF');
+                }
+            });
+
+            // Recenter Camera
+            document.getElementById('btn-recenter').addEventListener('click', () => {
+                camera.position.set(0, state.seatEyeY, state.curDistance);
+                camera.lookAt(0, 5, 0);
+                controls.target.set(0, 5, 0);
+                controls.update();
+            });
+
+            // Fullscreen Toggle (standard + mobile browser prefixes, with a visual fallback)
+            async function toggleCinemaFullscreen() {
+                const root = document.documentElement;
+                const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || document.body.classList.contains('cinema-fullscreen-fallback'));
+                try {
+                    if (!isFullscreen) {
+                        const request = root.requestFullscreen || root.webkitRequestFullscreen || root.msRequestFullscreen;
+                        if (request) {
+                            const result = request.call(root);
+                            if (result && typeof result.then === 'function') await result;
+                            updateStatus('FULLSCREEN ON');
+                        } else {
+                            // Some mobile browsers opened from a local HTML file do not expose Fullscreen API.
+                            document.body.classList.add('cinema-fullscreen-fallback');
+                            updateStatus('CINEMA VIEW ON');
+                        }
+                        try {
+                            if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+                        } catch (_) { /* Orientation lock is optional and browser-dependent. */ }
+                    } else {
+                        const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+                        if (exit && (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement)) {
+                            const result = exit.call(document);
+                            if (result && typeof result.then === 'function') await result;
+                        }
+                        document.body.classList.remove('cinema-fullscreen-fallback');
+                        try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (_) {}
+                        updateStatus('FULLSCREEN OFF');
+                    }
+                } catch (err) {
+                    document.body.classList.add('cinema-fullscreen-fallback');
+                    updateStatus('CINEMA VIEW ON · BROWSER FULLSCREEN BLOCKED');
+                }
+                setTimeout(onWindowResize, 150);
+            }
+            document.getElementById('btn-fullscreen').addEventListener('click', toggleCinemaFullscreen);
+            document.addEventListener('fullscreenchange', () => {
+                const active = !!document.fullscreenElement;
+                if (active) document.body.classList.remove('cinema-fullscreen-fallback');
+                setTimeout(onWindowResize, 150);
+            });
+            document.addEventListener('webkitfullscreenchange', () => setTimeout(onWindowResize, 150));
+
+            // Aspect Ratio Buttons
+            document.querySelectorAll('.btn-aspect').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.btn-aspect').forEach(b => {
+                        b.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                        b.classList.add('border-transparent', 'text-slate-300');
+                    });
+
+                    const targetBtn = e.currentTarget;
+                    targetBtn.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
+                    targetBtn.classList.remove('border-transparent', 'text-slate-300');
+                    document.querySelectorAll('.btn-aspect').forEach(b => b.setAttribute('aria-pressed', String(b === targetBtn)));
+
+                    state.aspectRatio = parseFloat(targetBtn.getAttribute('data-ratio'));
+                    const sideRatioToggle = document.getElementById('side-ratio-toggle');
+                    if (sideRatioToggle) {
+                        const ratioLabel = state.aspectRatio >= 1.6 ? '1.90:1' : '1.43:1';
+                        sideRatioToggle.querySelector('.tool-label').textContent = 'Aspect ' + ratioLabel;
+                        sideRatioToggle.title = 'Aspect Ratio ' + ratioLabel + ' (tap to toggle)';
+                        sideRatioToggle.setAttribute('aria-label', 'Current aspect ratio ' + ratioLabel + '. Tap to toggle');
+                    }
+                    createIMAXScreen();
+                    saveSettings();
+                });
+            });
+
+            // Curvature is hidden behind a dedicated main-screen button; no slider is shown until requested.
+            const curvatureToggle = document.getElementById('side-curvature');
+            const curvaturePopover = document.getElementById('curvature-popover');
+            function setCurvaturePopover(open) {
+                curvaturePopover.hidden = !open;
+                curvatureToggle.setAttribute('aria-expanded', String(open));
+            }
+            curvatureToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setCurvaturePopover(curvaturePopover.hidden);
+            });
+            curvaturePopover.addEventListener('click', (e) => e.stopPropagation());
+            document.addEventListener('click', (e) => {
+                if (!curvaturePopover.hidden && !document.getElementById('side-curvature-wrap').contains(e.target)) setCurvaturePopover(false);
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !curvaturePopover.hidden) { setCurvaturePopover(false); curvatureToggle.focus(); }
+            });
+
+            // Continuous curvature
+            const sliderCurvature = document.getElementById('slider-curvature');
+            function updateCurvatureLabel() {
+                const v = state.curvature;
+                const label = Math.abs(v) < 0.005 ? 'Flat' : (v < 0 ? 'Convex' : 'Concave');
+                const intensity = Math.abs(v) < 0.005 ? '' : (Math.abs(v) < 0.25 ? ' · Low' : Math.abs(v) < 0.55 ? ' · Medium' : ' · Strong');
+                document.getElementById('val-curvature').textContent = label + intensity + (Math.abs(v - 0.35) < 0.005 ? ' · Default' : '');
+            }
+            sliderCurvature.addEventListener('input', (e) => {
+                state.curvature = parseFloat(e.target.value);
+                updateCurvatureLabel();
+                updateBackWallCurvature();
+                createIMAXScreen();
+                saveSettings();
+            });
+
+            // FOV Slider
+            const sliderFOV = document.getElementById('slider-fov');
+            sliderFOV.addEventListener('input', (e) => {
+                state.fov = parseInt(e.target.value);
+                document.getElementById('val-fov').textContent = `${state.fov}°`;
+                camera.fov = state.fov;
+                camera.updateProjectionMatrix();
+                saveSettings();
+            });
+
+            // Light Intensity Slider
+            const sliderLight = document.getElementById('slider-light');
+            sliderLight.addEventListener('input', (e) => {
+                state.lightIntensity = parseFloat(e.target.value);
+                document.getElementById('val-light').textContent = `${Math.round(state.lightIntensity * 100)}%`;
+                saveSettings();
+            });
+
+            // Numbered seat picker: each seat places the camera at that seat's position.
+            const seatPicker = document.getElementById('seat-picker');
+            const seatGrid = document.getElementById('seat-grid');
+            const seatToggle = document.getElementById('btn-choose-seat');
+            const seatLabel = document.getElementById('selected-seat-label');
+            seatToggle.addEventListener('click', () => {
+                const opening = seatPicker.classList.contains('hidden');
+                seatPicker.classList.toggle('hidden', !opening);
+                seatToggle.setAttribute('aria-expanded', String(opening));
+                document.getElementById('seat-toggle-text').textContent = opening ? 'Hide Seats' : 'Seat No.';
+            });
+            // 3 rows x 5 seats = 15 individually selectable viewpoints.
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 5; col++) {
+                    const seatNo = row * 5 + col + 1;
+                    const seatBtn = document.createElement('button');
+                    seatBtn.type = 'button';
+                    seatBtn.textContent = String(seatNo);
+                    seatBtn.title = `Row ${String.fromCharCode(65 + row)}, Seat ${col + 1}`;
+                    seatBtn.className = 'rounded-md py-1 text-[9px] leading-3 border border-slate-700 bg-slate-900 text-slate-300 hover:bg-cyan-600 hover:text-white hover:border-cyan-400 transition';
+                    seatBtn.addEventListener('click', () => {
+                        // Match the selected camera to the actual modeled seat position.
+                        // Front/middle/back rows are at z=9/14/19; five seats span x=-5.5..5.5.
+                        const xOffset = (col - 2) * 2.75;
+                        const floorY = -5.0 + row * 0.85;
+                        const eyeY = floorY + 2.2;
+                        const distance = 9.0 + row * 5.0;
+                        const screenHeight = 14 * state.scale;
+                        const screenWidth = screenHeight * state.aspectRatio;
+                        const screenCenterY = screenHeight / 2 - 2;
+                        state.seatPreset = 'custom';
+                        state.selectedSeatNo = seatNo;
+                        state.seatX = xOffset;
+                        state.curDistance = distance;
+                        state.seatEyeY = eyeY;
+                        camera.position.set(xOffset, eyeY, distance);
+
+                        // Fit the complete screen into this seat's view. The center screen
+                        // stays its original size; the camera lens adapts to the seat position.
+                        // Include the ScreenX wings in the horizontal fit when they are enabled.
+                        const viewWidth = state.screenX ? screenWidth * 2.05 : screenWidth;
+                        const halfWidthFromSeat = viewWidth / 2 + Math.abs(xOffset);
+                        const topExtent = Math.abs((screenCenterY + screenHeight / 2) - eyeY);
+                        const bottomExtent = Math.abs((screenCenterY - screenHeight / 2) - eyeY);
+                        const halfHeightFromSeat = Math.max(topExtent, bottomExtent);
+                        const safeDistance = Math.max(1, distance);
+                        const verticalNeed = 2 * Math.atan((halfHeightFromSeat * 1.08) / safeDistance);
+                        const horizontalNeedAsVertical = 2 * Math.atan((halfWidthFromSeat * 1.08) / (safeDistance * Math.max(0.3, camera.aspect)));
+                        const fittedFov = THREE.MathUtils.radToDeg(Math.max(verticalNeed, horizontalNeedAsVertical));
+                        camera.fov = THREE.MathUtils.clamp(fittedFov, 45, 150);
+                        state.fov = Math.round(camera.fov);
+                        camera.updateProjectionMatrix();
+                        document.getElementById('slider-fov').value = Math.round(camera.fov);
+                        document.getElementById('val-fov').textContent = `${Math.round(camera.fov)}°`;
+                        controls.target.set(0, screenCenterY, 0);
+                        camera.lookAt(controls.target);
+                        controls.update();
+                        updateDepthMeshDisplacement();
+                        seatLabel.textContent = `Selected: Row ${String.fromCharCode(65 + row)}, Seat ${col + 1} (Seat ${seatNo})`;
+                        seatGrid.querySelectorAll('button').forEach(b => {
+                            b.classList.remove('bg-cyan-600', 'text-white', 'border-cyan-400');
+                            b.classList.add('bg-slate-900', 'text-slate-300', 'border-slate-700');
+                        });
+                        seatBtn.classList.remove('bg-slate-900', 'text-slate-300', 'border-slate-700');
+                        seatBtn.classList.add('bg-cyan-600', 'text-white', 'border-cyan-400');
+                        saveSettings();
+                    });
+                    seatGrid.appendChild(seatBtn);
+                }
+            }
+            if (state.selectedSeatNo) {
+                const restoredSeat = seatGrid.querySelectorAll('button')[state.selectedSeatNo - 1];
+                const restoredRow = Math.floor((state.selectedSeatNo - 1) / 5);
+                const restoredCol = (state.selectedSeatNo - 1) % 5;
+                if (restoredSeat) {
+                    restoredSeat.classList.remove('bg-slate-900', 'text-slate-300', 'border-slate-700');
+                    restoredSeat.classList.add('bg-cyan-600', 'text-white', 'border-cyan-400');
+                    seatLabel.textContent = `Selected: Row ${String.fromCharCode(65 + restoredRow)}, Seat ${restoredCol + 1} (Seat ${state.selectedSeatNo})`;
+                }
+            }
+
+            document.getElementById('slider-side-light').addEventListener('input', (e) => {
+                state.sideWallIntensity = parseFloat(e.target.value);
+                document.getElementById('val-side-light').textContent = `${Math.round(state.sideWallIntensity * 100)}%`;
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92); wallGlowRight.intensity = wallGlowLeft.intensity; }
+                saveSettings();
+            });
+
+            document.getElementById('btn-reset-settings').addEventListener('click', () => {
+                state.aspectRatio = 1.43; state.curvature = 0.35; state.sideWallIntensity = 0.35; state.edgeFit = false;
+                document.getElementById('btn-edge-fit').setAttribute('aria-pressed', 'false'); document.getElementById('btn-edge-fit').classList.remove('control-active'); preFitCamera = null;
+                state.scale = 1.0; state.fov = 65; state.lightIntensity = 0.8; state.themeMode = 'dark'; state.quality = 'medium'; state.depthMode = 'parallax'; state.depthStrength = 0.45; state.glowEnabled = true;
+                document.querySelectorAll('.btn-aspect').forEach(b => {
+                    const active = parseFloat(b.dataset.ratio) === 1.43;
+                    b.classList.toggle('border-blue-500', active); b.classList.toggle('bg-blue-600/20', active); b.classList.toggle('text-blue-400', active);
+                    b.classList.toggle('border-transparent', !active); b.classList.toggle('text-slate-300', !active);
+                });
+                document.getElementById('slider-curvature').value = state.curvature; updateCurvatureLabel(); updateBackWallCurvature();
+                document.getElementById('slider-fov').value = 65; document.getElementById('val-fov').textContent = '65°';
+                document.getElementById('slider-light').value = 0.8; document.getElementById('val-light').textContent = '80%';
+                document.getElementById('slider-side-light').value = 0.35; document.getElementById('val-side-light').textContent = '35%';
+                document.getElementById('select-quality').value = 'medium'; applyGraphicsQuality();
+                document.getElementById('select-depth-mode').value = 'parallax'; document.getElementById('slider-depth-strength').value = 0.45; document.getElementById('val-depth-strength').textContent = '0.45';
+                const resetGlowButton = document.getElementById('btn-glow-toggle'); resetGlowButton.setAttribute('aria-pressed', 'true'); resetGlowButton.querySelector('#glow-toggle-text').textContent = 'Rim Glow: ON'; resetGlowButton.classList.add('bg-indigo-600/20', 'text-indigo-200'); resetGlowButton.classList.remove('text-slate-400'); if (screenRimGlowMesh) screenRimGlowMesh.material.opacity = 0.35;
+                camera.fov = 65; camera.updateProjectionMatrix();
+                scene.fog.density = 0.018;
+                document.getElementById('btn-theme-dark').className = 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium';
+                document.getElementById('btn-theme-glow').className = 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white';
+                state.curDistance = 22; state.seatEyeY = -0.3; state.seatX = 0; state.selectedSeatNo = null; state.seatPreset = 'center';
+                document.getElementById('selected-seat-label').textContent = 'No seat selected';
+                document.querySelectorAll('#seat-grid button').forEach(b => { b.classList.remove('bg-cyan-600', 'text-white', 'border-cyan-400'); b.classList.add('bg-slate-900', 'text-slate-300', 'border-slate-700'); });
+                camera.position.set(state.seatX, state.seatEyeY, state.curDistance);
+                controls.target.set(0, 5, 0); controls.update(); updateDepthMeshDisplacement();
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * 0.92; wallGlowRight.intensity = state.sideWallIntensity * 0.92; }
+                if (state.screenX) setScreenXMode(false); else createIMAXScreen();
+                saveSettings();
+                updateStatus('SETTINGS RESET · IMAX');
+            });
+
+            document.getElementById('select-quality').addEventListener('change', (e) => {
+                state.quality = e.target.value;
+                applyGraphicsQuality();
+                saveSettings();
+                updateStatus('QUALITY · ' + state.quality.toUpperCase());
+            });
+            document.getElementById('btn-theme-dark').addEventListener('click', (e) => {
+                state.themeMode = 'dark';
+                scene.fog.density = 0.018;
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * 0.92; wallGlowRight.intensity = state.sideWallIntensity * 0.92; }
+                e.currentTarget.className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium";
+                document.getElementById('btn-theme-glow').className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white";
+                saveSettings();
+            });
+
+            document.getElementById('btn-theme-glow').addEventListener('click', (e) => {
+                state.themeMode = 'glow';
+                scene.fog.density = 0.008;
+                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * 3.15; wallGlowRight.intensity = state.sideWallIntensity * 3.15; }
+                e.currentTarget.className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium";
+                document.getElementById('btn-theme-dark').className = "glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white";
+                saveSettings();
+            });
+        }
+
+        const SETTINGS_KEY = 'imaxScreenXSettings_v30';
+        function restoreSavedSettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+                if (!saved || typeof saved !== 'object') return;
+                if ([1.43, 1.90].includes(Number(saved.aspectRatio))) state.aspectRatio = Number(saved.aspectRatio);
+                if (Number.isFinite(Number(saved.curvature))) state.curvature = Math.max(-0.8, Math.min(0.8, Number(saved.curvature)));
+                if (Number.isFinite(Number(saved.sideWallIntensity))) state.sideWallIntensity = Math.max(0, Math.min(1.5, Number(saved.sideWallIntensity)));
+                if (Number.isFinite(Number(saved.fov))) state.fov = Math.max(45, Math.min(95, Number(saved.fov)));
+                if (Number.isFinite(Number(saved.lightIntensity))) state.lightIntensity = Math.max(0, Math.min(2, Number(saved.lightIntensity)));
+                if (['dark','glow'].includes(saved.themeMode)) state.themeMode = saved.themeMode;
+                if (['low','medium','high'].includes(saved.quality)) state.quality = saved.quality;
+                state.screenX = Boolean(saved.screenX);
+                if (Number.isFinite(Number(saved.curDistance))) state.curDistance = Math.max(9, Math.min(32, Number(saved.curDistance)));
+                if (Number.isFinite(Number(saved.seatEyeY))) state.seatEyeY = Math.max(-3, Math.min(2, Number(saved.seatEyeY)));
+                if (Number.isFinite(Number(saved.seatX))) state.seatX = Math.max(-6, Math.min(6, Number(saved.seatX)));
+                if (Number.isInteger(Number(saved.selectedSeatNo)) && Number(saved.selectedSeatNo) >= 1 && Number(saved.selectedSeatNo) <= 15) state.selectedSeatNo = Number(saved.selectedSeatNo);
+
+                if (['off','parallax','depthMap','aiVideoDepth'].includes(saved.depthMode)) state.depthMode = saved.depthMode;
+                if (Number.isFinite(Number(saved.depthStrength))) state.depthStrength = Number(saved.depthStrength);
+                if (typeof saved.glowEnabled === 'boolean') state.glowEnabled = saved.glowEnabled;
+            } catch (_) { /* Storage fallback */ }
+        }
+
+        function saveSettings() {
+            try {
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+                    aspectRatio: state.aspectRatio, curvature: state.curvature,
+                    sideWallIntensity: state.sideWallIntensity, scale: state.scale,
+                    fov: state.fov, lightIntensity: state.lightIntensity,
+                    themeMode: state.themeMode, quality: state.quality,
+                    screenX: state.screenX, curDistance: state.curDistance, seatEyeY: state.seatEyeY, seatX: state.seatX, selectedSeatNo: state.selectedSeatNo,
+                    depthMode: state.depthMode, depthStrength: state.depthStrength,
+                    glowEnabled: state.glowEnabled
+                }));
+                const saveStatus = document.getElementById('autosave-status');
+                if (saveStatus) saveStatus.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i>Auto-saved';
+            } catch (_) {
+                const saveStatus = document.getElementById('autosave-status');
+                if (saveStatus) saveStatus.textContent = 'Auto-save unavailable in this browser';
+            }
+        }
+
+        function syncSettingsUI() {
+            document.getElementById('slider-curvature').value = state.curvature;
+            document.getElementById('slider-fov').value = state.fov;
+            document.getElementById('slider-light').value = state.lightIntensity;
+            document.getElementById('slider-side-light').value = state.sideWallIntensity;
+            document.getElementById('select-quality').value = state.quality;
+            document.getElementById('val-curvature').textContent = Math.abs(state.curvature) < 0.005 ? 'Flat' : (state.curvature > 0 ? 'Concave' : 'Convex');
+            document.getElementById('val-fov').textContent = `${state.fov}°`;
+            document.getElementById('val-light').textContent = `${Math.round(state.lightIntensity * 100)}%`;
+            document.getElementById('val-side-light').textContent = `${Math.round(state.sideWallIntensity * 100)}%`;
+            document.querySelectorAll('.btn-aspect').forEach(b => {
+                const active = Math.abs(parseFloat(b.dataset.ratio) - state.aspectRatio) < 0.001;
+                b.setAttribute('aria-pressed', String(active));
+                b.classList.toggle('border-blue-500', active); b.classList.toggle('bg-blue-600/20', active); b.classList.toggle('text-blue-400', active);
+                b.classList.toggle('border-transparent', !active); b.classList.toggle('text-slate-300', !active);
+            });
+
+            // Sync Depth UI Controls
+            document.getElementById('select-depth-mode').value = state.depthMode;
+            document.getElementById('slider-depth-strength').value = state.depthStrength;
+            document.getElementById('val-depth-strength').textContent = state.depthStrength.toFixed(2);
+            const btnGlow = document.getElementById('btn-glow-toggle');
+            btnGlow.querySelector('#glow-toggle-text').textContent = state.glowEnabled ? 'Rim Glow: ON' : 'Rim Glow: OFF';
+            btnGlow.setAttribute('aria-pressed', String(state.glowEnabled));
+            btnGlow.classList.toggle('bg-indigo-600/20', state.glowEnabled);
+            btnGlow.classList.toggle('text-indigo-300', state.glowEnabled);
+            btnGlow.classList.toggle('text-slate-400', !state.glowEnabled);
+        }
+
+        function syncThemeUI() {
+            const glow = state.themeMode === 'glow';
+            scene.fog.density = glow ? 0.008 : 0.018;
+            if (wallGlowLeft) {
+                wallGlowLeft.intensity = state.sideWallIntensity * (glow ? 3.15 : 0.92);
+                wallGlowRight.intensity = wallGlowLeft.intensity;
+            }
+            document.getElementById('btn-theme-dark').className = glow
+                ? 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white'
+                : 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium';
+            document.getElementById('btn-theme-glow').className = glow
+                ? 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium'
+                : 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white';
+        }
+
+        function getQualityPixelRatio(isMobile) {
+            const dpr = window.devicePixelRatio || 1;
+            if (state.quality === 'low') return Math.min(dpr, isMobile ? 0.7 : 0.85);
+            if (state.quality === 'high') return Math.min(dpr, isMobile ? 1.25 : 1.75);
+            return Math.min(dpr, isMobile ? 1.0 : 1.35);
+        }
+
+        function applyGraphicsQuality() {
+            if (!renderer) return;
+            const mobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || window.innerWidth < 700;
+            renderer.setPixelRatio(getQualityPixelRatio(mobile));
+            renderer.shadowMap.enabled = state.quality === 'high' && !mobile;
+            renderer.shadowMap.needsUpdate = true;
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
 
 
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
 
-    <script src="script.js"></script>
+        document.addEventListener('fullscreenchange', () => setTimeout(onWindowResize, 120));
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            const viewport = window.visualViewport;
+            const container = document.getElementById('canvas-container');
+            const width = Math.max(1, Math.round((container && container.clientWidth) || (viewport && viewport.width) || window.innerWidth));
+            const height = Math.max(1, Math.round((container && container.clientHeight) || (viewport && viewport.height) || window.innerHeight));
+            camera.aspect = width / height;
+
+            // On narrow browser viewports, widen the lens enough to keep the full IMAX
+            // screen (and ScreenX wings when enabled) in view instead of cropping the sides.
+            const screenHeight = 14 * state.scale;
+            const screenWidth = screenHeight * state.aspectRatio * (state.screenX ? 2.05 : 1);
+            const distance = Math.max(8, camera.position.distanceTo(controls ? controls.target : new THREE.Vector3(0, 5, 0)));
+            const targetY = controls ? controls.target.y : 5;
+            const verticalExtent = Math.max(
+                Math.abs((screenHeight - targetY) - camera.position.y),
+                Math.abs((0 - targetY) - camera.position.y)
+            );
+            const horizontalExtent = screenWidth / 2 + Math.abs(camera.position.x);
+            const verticalFov = 2 * Math.atan((verticalExtent * 1.10) / distance);
+            const horizontalFovAsVertical = 2 * Math.atan((horizontalExtent * 1.10) / (distance * Math.max(0.25, camera.aspect)));
+            const fitFov = THREE.MathUtils.radToDeg(Math.max(verticalFov, horizontalFovAsVertical));
+            camera.fov = THREE.MathUtils.clamp(Math.max(state.fov || 50, fitFov), 45, 150);
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(width, height);
+            const mobile = width < 700;
+            renderer.setPixelRatio(getQualityPixelRatio(mobile));
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+        });
+
+        // --- 8. Animation Loop (quality-preserving) ---
+        // Keep the renderer pixel ratio controlled only by the existing Quality setting.
+        // Do not dynamically lower render resolution based on FPS.
+        function animate(timestamp) {
+            requestAnimationFrame(animate);
+            if (document.hidden) return; // avoid spending GPU time while the tab is hidden
+
+            const timeSec = (Number.isFinite(timestamp) ? timestamp : performance.now()) * 0.001;
+
+            controls.update();
+            updateDynamicAmbilight();
+            if (screenRimGlowMesh && spotLight) {
+                screenRimGlowMesh.material.color.copy(spotLight.color);
+                screenRimGlowMesh.material.opacity = state.glowEnabled
+                    ? (0.2 + spotLight.intensity * 0.12)
+                    : 0;
+            }
+            analyzeVideoDepthMap(timestamp);
+            if (state.depthMode === 'aiVideoDepth' && videoDepthAnalysisReady) applyPrecomputedVideoDepth();
+            updateCinematicEffects(timeSec);
+
+            renderer.render(scene, camera);
+        }
+    </script>
+
+<script>
+/* Stable viewport resize: rerender only on settled viewport changes; never accumulate camera zoom. */
+(function () {
+  let resizeTimer = 0;
+  let lastW = 0, lastH = 0;
+  function stableViewportResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      const vv = window.visualViewport;
+      const w = Math.max(1, Math.round(vv && vv.width ? vv.width : window.innerWidth));
+      const h = Math.max(1, Math.round(vv && vv.height ? vv.height : window.innerHeight));
+      if (Math.abs(w - lastW) < 2 && Math.abs(h - lastH) < 2) return;
+      lastW = w; lastH = h;
+      if (typeof onWindowResize === 'function') onWindowResize();
+    }, 140);
+  }
+  window.addEventListener('resize', stableViewportResize, { passive: true });
+  window.addEventListener('orientationchange', function () { setTimeout(stableViewportResize, 220); }, { passive: true });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', stableViewportResize, { passive: true });
+  window.addEventListener('load', stableViewportResize, { once: true, passive: true });
+})();
+</script>
+
+
+<style id="requested-menu-autohide-fix">
+/* The lower three-dot menu is the single entry point for the full settings panel. */
+#btn-toggle-ui, #btn-restore-toolbar, #btn-hide-toolbar { display:none !important; }
+#controls-panel.menu-open-from-player {
+  position:fixed !important; top:auto !important; right:14px !important;
+  bottom:100px !important; left:auto !important; z-index:100 !important;
+  width:min(360px, calc(100vw - 24px)) !important;
+  max-height:min(72dvh, 680px) !important; overflow-y:auto !important;
+  transform:none !important; display:flex !important; visibility:visible !important;
+}
+#controls-panel.menu-closed-from-player { display:none !important; }
+#cinema-left-tools, #cinema-right-tools, #quick-controls, #player-bar {
+  transition:opacity .22s ease, visibility .22s ease !important;
+}
+body.screen-controls-idle #cinema-left-tools,
+body.screen-controls-idle #cinema-right-tools,
+body.screen-controls-idle #quick-controls,
+body.screen-controls-idle #player-bar {
+  opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
+}
+body.screen-controls-idle #seat-picker { visibility:hidden !important; }
+@media(max-width:640px) {
+ #controls-panel.menu-open-from-player { right:8px !important; bottom:88px !important; width:calc(100vw - 16px) !important; max-height:72dvh !important; }
+}
+</style>
+<script id="requested-menu-autohide-fix-js">
+(function(){
+  function initRequestedUI(){
+    const panel=document.getElementById('controls-panel');
+    const more=document.querySelector('[data-player-action="more"]');
+    const restore=document.getElementById('btn-restore-toolbar');
+    const oldHide=document.getElementById('btn-hide-toolbar');
+    if(restore) restore.remove();
+    if(oldHide) oldHide.remove();
+    if(panel){
+      panel.classList.remove('translate-x-0');
+      panel.classList.add('menu-closed-from-player');
+      panel.classList.remove('menu-open-from-player');
+    }
+    function togglePanel(ev){
+      if(ev){ev.preventDefault();ev.stopPropagation();}
+      if(!panel) return;
+      const open=!panel.classList.contains('menu-open-from-player');
+      panel.classList.toggle('menu-open-from-player',open);
+      panel.classList.toggle('menu-closed-from-player',!open);
+      if(more) more.setAttribute('aria-expanded',String(open));
+      if(open) showControlsAndResetTimer();
+    }
+    if(more){ more.addEventListener('click',togglePanel,true); more.setAttribute('aria-haspopup','dialog'); more.setAttribute('aria-expanded','false'); }
+    const close=document.getElementById('btn-close-panel');
+    if(close) close.addEventListener('click',function(){
+      if(panel){panel.classList.remove('menu-open-from-player');panel.classList.add('menu-closed-from-player');}
+      if(more) more.setAttribute('aria-expanded','false');
+      showControlsAndResetTimer();
+    },true);
+
+    let idleTimer=null;
+    function showControlsAndResetTimer(){
+      document.body.classList.remove('screen-controls-idle');
+      if(idleTimer) clearTimeout(idleTimer);
+      idleTimer=setTimeout(function(){
+        if(panel && panel.classList.contains('menu-open-from-player')) { showControlsAndResetTimer(); return; }
+        const active=document.activeElement;
+        if(active && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) { showControlsAndResetTimer(); return; }
+        document.body.classList.add('screen-controls-idle');
+      },5000);
+    }
+    // Any deliberate touch/click/keyboard activity reveals all on-screen keys, then hides them
+    // after five seconds of inactivity. Ignore touch pointer-move noise so it cannot keep them visible.
+    ['pointerdown','touchstart','click','keydown','input','change'].forEach(function(evt){
+      document.addEventListener(evt,function(e){
+        if(panel && panel.contains(e.target)) { showControlsAndResetTimer(); return; }
+        showControlsAndResetTimer();
+      },{capture:true,passive:true});
+    });
+    document.addEventListener('mousemove',showControlsAndResetTimer,{passive:true});
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)showControlsAndResetTimer();});
+    showControlsAndResetTimer();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initRequestedUI,{once:true});
+  else initRequestedUI();
+})();
+</script>
+
 </body>
 </html>
-
-                
