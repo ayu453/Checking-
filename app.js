@@ -1,4 +1,6 @@
 
+/* ---- Inline script section 1 ---- */
+
         // Sample Video Sources
         const SAMPLES = {
             sample1: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
@@ -16,19 +18,16 @@
             themeMode: 'dark',   // 'dark' or 'glow'
             curDistance: 22,     // Camera Z distance
             seatEyeY: -0.8,      // Eye height follows the selected auditorium row
+            seatX: 0,
+            selectedSeatNo: null,
             seatPreset: 'center',
             screenX: false,
             screenShape: 'concave',
             quality: 'medium',
 
             // Advanced Depth & Cinematic FX Extensions
-            depthMode: 'parallax', // 'off', 'parallax', 'depthMap', 'externalDepthMap'
+            depthMode: 'parallax', // 'off', 'parallax', 'depthMap', 'aiVideoDepth'
             depthStrength: 0.45,
-            popoutEnabled: true,
-            popoutDistance: 2.5,
-            demoObjects: false,
-            particlesEnabled: true,
-            raysEnabled: true,
             glowEnabled: true,
             edgeFit: false
         };
@@ -47,7 +46,7 @@
         let preFitCamera = null;
 
         // Visual Effects Objects
-        let particleSystem = null, lightRayGroup = null, popoutGroup = null, screenRimGlowMesh = null;
+        let screenRimGlowMesh = null;
         let depthDataArray = null;
         let depthAnalysisTarget = null;
         let lastDepthAnalysisTime = 0;
@@ -68,10 +67,28 @@
         const timeCurrent = document.getElementById('time-current');
         const timeTotal = document.getElementById('time-total');
         const videoFileInput = document.getElementById('video-file-input');
-        const depthMapFileInput = document.getElementById('depth-map-file-input');
-        const aiDepthImageInput = document.getElementById('ai-depth-image-input');
-        let aiDepthSourceFile = null;
         let aiDepthPipelinePromise = null;
+        let precomputedVideoDepthFrames = [];
+        let videoDepthAnalysisReady = false;
+        let videoDepthAnalysisInProgress = false;
+        let videoDepthAnalysisCancelled = false;
+        let currentAppliedDepthFrameIndex = -1;
+
+        function applyPrecomputedVideoDepth() {
+            if (state.depthMode !== 'aiVideoDepth' || !videoDepthAnalysisReady || !precomputedVideoDepthFrames.length) return;
+            const t = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+            let bestIndex = 0;
+            let bestDistance = Math.abs(precomputedVideoDepthFrames[0].time - t);
+            for (let i = 1; i < precomputedVideoDepthFrames.length; i++) {
+                const distance = Math.abs(precomputedVideoDepthFrames[i].time - t);
+                if (distance < bestDistance) { bestIndex = i; bestDistance = distance; }
+            }
+            if (bestIndex !== currentAppliedDepthFrameIndex) {
+                currentAppliedDepthFrameIndex = bestIndex;
+                depthDataArray = precomputedVideoDepthFrames[bestIndex].data;
+                updateDepthMeshDisplacement();
+            }
+        }
         const controlsPanel = document.getElementById('controls-panel');
 
         // Persisted user settings are restored before building the scene.
@@ -98,7 +115,7 @@
 
             // Camera setup
             camera = new THREE.PerspectiveCamera(state.fov, window.innerWidth / window.innerHeight, 0.1, 200);
-            camera.position.set(0, state.seatEyeY, state.curDistance);
+            camera.position.set(state.seatX || 0, state.seatEyeY, state.curDistance);
 
             // Renderer setup
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -119,13 +136,17 @@
             controls.dampingFactor = 0.05;
             controls.maxPolarAngle = Math.PI / 2 + 0.05; // Prevent going beneath floor
             controls.minDistance = 8;
-            controls.maxDistance = 38;
+            controls.maxDistance = 27;
+            controls.enablePan = false; // Keep the viewing target inside the auditorium
             controls.target.set(0, 5, 0);
             controls.addEventListener('change', () => {
-                if (camera.position.z < 3) {
-                    camera.position.z = 3;
-                    camera.lookAt(controls.target);
-                }
+                // Constrain the camera to the inside of the room (room bounds: x ±26, y -5..15, z about -3..26).
+                camera.position.x = THREE.MathUtils.clamp(camera.position.x, -24.5, 24.5);
+                camera.position.y = THREE.MathUtils.clamp(camera.position.y, -4.5, 14.5);
+                camera.position.z = THREE.MathUtils.clamp(camera.position.z, -2.5, 25.5);
+                controls.target.x = THREE.MathUtils.clamp(controls.target.x, -22, 22);
+                controls.target.y = THREE.MathUtils.clamp(controls.target.y, -3.5, 13.5);
+                controls.target.z = THREE.MathUtils.clamp(controls.target.z, -1.5, 24.5);
                 updateDepthMeshDisplacement();
             });
 
@@ -188,7 +209,7 @@
             // The screen/frame at z=-6 remains inside the room, in front of the bowed wall center.
             const frameBackZ = -3.075;
             const sideWallFrontZ = frameBackZ;
-            const sideEndZ = 53.0;
+            const sideEndZ = 26.0;
             const sideWallLength = sideEndZ - sideWallFrontZ;
             const sideWallCenterZ = (sideEndZ + sideWallFrontZ) / 2;
             const sideWallMat = wallMaterial.clone();
@@ -199,9 +220,18 @@
                 sideWall.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
                 sideWall.position.set(side * roomWidth / 2, roomHeight / 2 - 5, sideWallCenterZ);
                 scene.add(sideWall);
-
-                // No extra corner/back-wall surface is placed outside the screen frame.
             }
+
+            // Close the auditorium at the REAR, behind the seating rows.
+            // The curved wall near z=-3.075 is the screen/front wall; this is the opposite wall.
+            const rearWallMat = wallMaterial.clone();
+            rearWallMat.side = THREE.DoubleSide;
+            const rearWall = new THREE.Mesh(
+                new THREE.PlaneGeometry(roomWidth, roomHeight),
+                rearWallMat
+            );
+            rearWall.position.set(0, roomHeight / 2 - 5, sideEndZ);
+            scene.add(rearWall);
 
             const acousticMat = new THREE.MeshStandardMaterial({ color: 0x242528, roughness: 0.97, metalness: 0.015 });
             const insetMat = new THREE.MeshStandardMaterial({ color: 0x101113, roughness: 0.94, metalness: 0.02 });
@@ -282,8 +312,10 @@
 
             wallGlowLeft = new THREE.PointLight(0x9b8b78, 0.28, 18, 2);
             wallGlowRight = new THREE.PointLight(0x9b8b78, 0.28, 18, 2);
-            wallGlowLeft.position.set(-21, 6.5, 13);
-            wallGlowRight.position.set(21, 6.5, 13);
+            // Pull both glow lights inward from the side walls and lower them to floor level,
+            // behind the seating area rather than high up on the side walls.
+            wallGlowLeft.position.set(-9, -4.25, 49);
+            wallGlowRight.position.set(9, -4.25, 49);
             scene.add(wallGlowLeft, wallGlowRight);
 
             createTheaterSeats();
@@ -430,12 +462,23 @@
             screenFrameMesh.position.set(0, centerY, -6.0);
             scene.add(screenFrameMesh);
 
-            // Thin front-facing rim frame: a hollow rectangular ring, not a full plane.
-            // It sits just in front of the screen so the edge glow remains visible in movie mode
-            // without tinting or covering the picture area.
-            const rimOuterW = screenWidth + 0.46, rimOuterH = screenHeight + 0.46;
-            const rimInnerW = screenWidth + 0.04, rimInnerH = screenHeight + 0.04;
-            screenRimGlowMesh = null; // Rim light intentionally disabled per user request.
+            // Screen rim glow: preserve the original plane size, depth, colour-following,
+            // additive blending and toggle behaviour. Z=-1.5 matches the original placement
+            // relative to the screen (screen plane at Z=0); values are Three.js world units.
+            const rimGeo = new THREE.PlaneGeometry(screenWidth + 2.0, screenHeight + 2.0);
+            const rimMat = new THREE.MeshBasicMaterial({
+                color: 0x3b82f6,
+                transparent: true,
+                opacity: state.glowEnabled ? 0.35 : 0.0,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthTest: true,
+                depthWrite: false,
+                toneMapped: false
+            });
+            screenRimGlowMesh = new THREE.Mesh(rimGeo, rimMat);
+            screenRimGlowMesh.position.set(0, centerY, -1.5);
+            scene.add(screenRimGlowMesh);
 
             if (state.screenX) createScreenXPanels(screenWidth, screenHeight);
             updateDepthMeshDisplacement();
@@ -529,7 +572,7 @@
                     // Stable, edge-tapered displacement avoids pinched or flickering screen edges.
                     const edgeFade = Math.sin((1 - Math.abs(normalizedX)) * Math.PI * 0.5);
                     depthVal = Math.sin(normalizedX * Math.PI) * parallaxFactor * 0.7 * edgeFade;
-                } else if ((state.depthMode === 'depthMap' || state.depthMode === 'externalDepthMap') && depthDataArray) {
+                } else if ((state.depthMode === 'depthMap' || state.depthMode === 'aiVideoDepth') && depthDataArray) {
                     const colIdx = Math.min(63, Math.max(0, Math.floor((normalizedX * 0.5 + 0.5) * 64)));
                     const rowIdx = Math.min(35, Math.max(0, Math.floor((0.5 - normalizedY * 0.5) * 36)));
                     const sample = depthDataArray[rowIdx * 64 + colIdx];
@@ -574,186 +617,10 @@
             } catch (e) { /* Fallback gracefully on CORS restrictions */ }
         }
 
-        // --- 5. Cinematic FX, Floating Dust Particles, Light Rays & Pop-out Engine ---
-        function initCinematicEffects() {
-            // Floating auditorium dust: low-cost GPU points with per-particle drift data.
-            const particleCount = 190;
-            const particleGeo = new THREE.BufferGeometry();
-            const particlePos = new Float32Array(particleCount * 3);
-            const particleDrift = new Float32Array(particleCount);
-            for (let i = 0; i < particleCount; i++) {
-                const j = i * 3;
-                particlePos[j] = (Math.random() - 0.5) * 42;
-                particlePos[j + 1] = Math.random() * 18 - 1.5;
-                particlePos[j + 2] = Math.random() * 34 - 8;
-                particleDrift[i] = 0.35 + Math.random() * 0.9;
-            }
-            particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
-            particleGeo.attributes.position.setUsage(THREE.DynamicDrawUsage);
-            const particleMat = new THREE.PointsMaterial({
-                color: 0xb8d9ff,
-                size: 0.105,
-                transparent: true,
-                opacity: 0.38,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                sizeAttenuation: true
-            });
-            particleSystem = new THREE.Points(particleGeo, particleMat);
-            particleSystem.frustumCulled = false;
-            particleSystem.visible = state.particlesEnabled;
-            particleSystem.userData.drift = particleDrift;
-            scene.add(particleSystem);
-
-            // Rectangular tapered projector beam aimed at the screen bounds.
-            // The beam starts narrow at the rear projector and expands to the screen rectangle.
-            // Screen geometry itself is not modified.
-            lightRayGroup = new THREE.Group();
-            const screenH = 14 * state.scale;
-            const screenW = screenH * state.aspectRatio;
-            const screenCenterY = screenH / 2 - 2;
-            const projectorZ = 18;
-            const projectorY = 7;
-
-            function makeRectangularBeam(widthScale, heightScale, opacity, zOffset) {
-                const nearW = 1.15 * widthScale;
-                const nearH = 0.78 * heightScale;
-                const farW = screenW * widthScale;
-                const farH = screenH * heightScale;
-                const nearY = projectorY;
-                const farY = screenCenterY;
-                const vertices = new Float32Array([
-                    // narrow rectangle at projector end (z=18)
-                    -nearW/2, nearY-nearH/2, projectorZ+zOffset,
-                     nearW/2, nearY-nearH/2, projectorZ+zOffset,
-                     nearW/2, nearY+nearH/2, projectorZ+zOffset,
-                    -nearW/2, nearY+nearH/2, projectorZ+zOffset,
-                    // wide rectangle terminating at the screen plane (z=0)
-                    -farW/2, farY-farH/2, 0+zOffset,
-                     farW/2, farY-farH/2, 0+zOffset,
-                     farW/2, farY+farH/2, 0+zOffset,
-                    -farW/2, farY+farH/2, 0+zOffset
-                ]);
-                // Four trapezoidal sides only: no solid caps, so the beam remains airy.
-                const indices = [
-                    0,1,5, 0,5,4, 1,2,6, 1,6,5,
-                    2,3,7, 2,7,6, 3,0,4, 3,4,7
-                ];
-                const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                // UVs let the shader soften the rectangular beam edges while keeping
-                // the beam's far end aligned exactly to the existing screen bounds.
-                geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([
-                    0,0, 1,0, 1,0, 0,0,
-                    0,1, 1,1, 1,1, 0,1
-                ]), 2));
-                geo.setIndex(indices);
-                geo.computeVertexNormals();
-                const mat = new THREE.ShaderMaterial({
-                    uniforms: {
-                        beamColor: { value: new THREE.Color(0xb9d9ff) },
-                        beamOpacity: { value: opacity },
-                        beamTime: { value: 0 }
-                    },
-                    vertexShader: `
-                        varying vec2 vUv;
-                        varying float vHeight;
-                        void main() {
-                            vUv = uv;
-                            vHeight = position.y;
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                        }
-                    `,
-                    fragmentShader: `
-                        uniform vec3 beamColor;
-                        uniform float beamOpacity;
-                        uniform float beamTime;
-                        varying vec2 vUv;
-                        varying float vHeight;
-                        void main() {
-                            float edgeX = smoothstep(0.0, 0.20, vUv.x) * (1.0 - smoothstep(0.80, 1.0, vUv.x));
-                            float edgeY = smoothstep(0.0, 0.18, vUv.y);
-                            float softEdge = edgeX * edgeY;
-                            float ambientVariation = 0.94 + 0.06 * sin(vUv.y * 5.0 + beamTime * 0.22);
-                            gl_FragColor = vec4(beamColor, beamOpacity * softEdge * ambientVariation);
-                        }
-                    `,
-                    transparent: true,
-                    side: THREE.DoubleSide,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    toneMapped: false
-                });
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.frustumCulled = false;
-                mesh.renderOrder = 2;
-                return mesh;
-            }
-
-            // Broad ambient haze plus two subtler inner layers; all end at screen bounds.
-            lightRayGroup.add(makeRectangularBeam(0.98, 0.96, 0.018, 0.025));
-            lightRayGroup.add(makeRectangularBeam(0.82, 0.80, 0.022, 0.012));
-            lightRayGroup.add(makeRectangularBeam(0.64, 0.62, 0.026, 0));
-            lightRayGroup.visible = state.raysEnabled;
-            scene.add(lightRayGroup);
-
-            // 3D Pop-Out Demo Objects Group (left unchanged functionally)
-            popoutGroup = new THREE.Group();
-            const popMat = new THREE.MeshStandardMaterial({
-                color: 0x60a5fa,
-                roughness: 0.3,
-                metalness: 0.8,
-                emissive: 0x1d4ed8,
-                emissiveIntensity: 0.4
-            });
-            for (let i = 0; i < 5; i++) {
-                const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), popMat);
-                mesh.position.set((i - 2) * 3.5, 4 + Math.sin(i) * 1.5, 2);
-                popoutGroup.add(mesh);
-            }
-            popoutGroup.visible = state.popoutEnabled && state.demoObjects;
-            scene.add(popoutGroup);
-        }
-
-        function updateCinematicEffects(time) {
-            // Frame-rate-independent, gentle dust drift with wraparound; mark the buffer once.
-            if (particleSystem && state.particlesEnabled) {
-                const positions = particleSystem.geometry.attributes.position.array;
-                const drift = particleSystem.userData.drift;
-                const dt = Math.min(0.05, Math.max(0, time - (particleSystem.userData.lastTime || time)));
-                particleSystem.userData.lastTime = time;
-                for (let i = 0; i < positions.length; i += 3) {
-                    const index = i / 3;
-                    positions[i] += Math.sin(time * 0.45 + index * 0.73) * 0.012 * drift[index];
-                    positions[i + 1] += dt * drift[index] * 0.22;
-                    if (positions[i + 1] > 17) positions[i + 1] = -1.5;
-                    if (positions[i] > 22) positions[i] = -22;
-                    else if (positions[i] < -22) positions[i] = 22;
-                }
-                particleSystem.geometry.attributes.position.needsUpdate = true;
-            }
-
-            // Animate 3D Pop-Out Demo Elements
-            if (popoutGroup && state.popoutEnabled && state.demoObjects) {
-                popoutGroup.children.forEach((obj, idx) => {
-                    obj.rotation.x += 0.01;
-                    obj.rotation.y += 0.015;
-                    const popZ = 1.0 + Math.sin(time * 2 + idx) * (state.popoutDistance * 0.8);
-                    obj.position.z = popZ;
-                });
-            }
-            if (lightRayGroup && spotLight && state.raysEnabled) {
-                lightRayGroup.children.forEach((ray, idx) => {
-                    // Match the soft ambient beam tint to sampled screen/projector colour.
-                    if (ray.material.uniforms) {
-                        ray.material.uniforms.beamColor.value.copy(spotLight.color);
-                        ray.material.uniforms.beamTime.value = time;
-                        const base = [0.025, 0.032, 0.038][idx] || 0.03;
-                        ray.material.uniforms.beamOpacity.value = base * (0.97 + 0.03 * Math.sin(time * 0.38 + idx * 0.45));
-                    }
-                });
-            }
-        }
+        // Dust particles, projector light rays, and demo 3D objects have been removed.
+        // Keep these no-op functions because the main initialization/animation flow calls them.
+        function initCinematicEffects() {}
+        function updateCinematicEffects(time) {}
 
         function setScreenXMode(enabled) {
             state.screenX = !!enabled;
@@ -788,17 +655,18 @@
         }
 
         function initVideoPlayer() {
-            // Touch: tap the cinema area to hide the controls; tap again to show them.
-            // Mouse movement and keyboard activity reveal controls on desktop. Do not let
-            // touch-generated pointermove events immediately undo a screen-tap hide.
+            // Tap the 3D canvas to hide/show all UI controls together.
             const playerBar = document.getElementById('player-bar');
+            const canvasContainer = document.getElementById('canvas-container');
             let playerHideTimer = null;
             const hidePlayerControls = () => {
                 if (playerHideTimer) clearTimeout(playerHideTimer);
                 if (playerBar.contains(document.activeElement)) document.activeElement.blur();
                 playerBar.classList.add('player-controls-hidden');
+                document.body.classList.add('cinema-ui-hidden');
             };
             const showPlayerControls = () => {
+                document.body.classList.remove('cinema-ui-hidden');
                 playerBar.classList.remove('player-controls-hidden');
                 if (playerHideTimer) clearTimeout(playerHideTimer);
                 playerHideTimer = setTimeout(() => {
@@ -806,18 +674,25 @@
                 }, 5000);
             };
             document.addEventListener('pointerdown', (e) => {
-                if (playerBar.contains(e.target)) {
+                const target = e.target;
+                const isCanvasTap = target === canvasContainer || (target.tagName === 'CANVAS' && target.parentElement === canvasContainer);
+                if (isCanvasTap) {
+                    if (document.body.classList.contains('cinema-ui-hidden')) showPlayerControls();
+                    else hidePlayerControls();
+                    return;
+                }
+                if (target.closest('button, input, select, label, #controls-panel, #player-bar, #quick-controls, .cinema-side-tools, .cinema-icon-tool')) {
                     showPlayerControls();
                     return;
                 }
-                // Only taps/clicks outside the control panel toggle its visibility.
-                if (playerBar.classList.contains('player-controls-hidden')) showPlayerControls();
-                else hidePlayerControls();
+                if (document.body.classList.contains('cinema-ui-hidden')) showPlayerControls();
             }, {passive:true});
             document.addEventListener('pointermove', (e) => {
-                if (e.pointerType !== 'touch') showPlayerControls();
+                if (e.pointerType !== 'touch' && !document.body.classList.contains('cinema-ui-hidden')) showPlayerControls();
             }, {passive:true});
-            document.addEventListener('mousemove', showPlayerControls, {passive:true});
+            document.addEventListener('mousemove', () => {
+                if (!document.body.classList.contains('cinema-ui-hidden')) showPlayerControls();
+            }, {passive:true});
             document.addEventListener('keydown', showPlayerControls);
             playerBar.addEventListener('pointermove', (e) => {
                 if (e.pointerType !== 'touch') showPlayerControls();
@@ -927,16 +802,35 @@
             videoFileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (file) {
+                    videoDepthAnalysisCancelled = true;
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
                     if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
                     currentObjectUrl = URL.createObjectURL(file);
                     video.src = currentObjectUrl;
                     video.load();
-                    video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
+                    const readyButton = document.getElementById('btn-play-when-ready');
+                    if (readyButton) { readyButton.disabled = true; readyButton.style.opacity = '0.5'; readyButton.style.cursor = 'not-allowed'; }
+                    if (state.depthMode === 'aiVideoDepth') {
+                        video.pause();
+                        document.getElementById('ai-depth-status').textContent = 'Video loaded. Tap Analyze Video; playback will be available when analysis finishes.';
+                        updateStatus('VIDEO LOADED · ANALYZE DEPTH FIRST');
+                    } else {
+                        video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
+                    }
                 }
             });
         }
 
         function togglePlay() {
+            if (state.depthMode === 'aiVideoDepth' && !videoDepthAnalysisReady) {
+                document.getElementById('ai-depth-status').textContent = 'Analyze the video first, then press Play when ready.';
+                return;
+            }
             if (video.paused) {
                 video.play().then(() => updatePlayButtonUI(true)).catch(err => console.log("Playback interaction required: ", err));
             } else {
@@ -957,12 +851,9 @@
             if (!scene) return;
             if (enabled) {
                 scene.traverse((object) => {
-                    // Preserve the actual movie surfaces and cinematic foreground effects.
+                    // Preserve the actual movie surfaces and rim-glow effect.
                     const isDisplay = isDescendantOf(object, screenMesh) ||
-                        isDescendantOf(object, screenXGroup) ||
-                        isDescendantOf(object, popoutGroup) ||
-                        isDescendantOf(object, particleSystem) ||
-                        isDescendantOf(object, lightRayGroup);
+                        isDescendantOf(object, screenXGroup);
                     if (object.isLight) {
                         if (!interiorBlackRestore.has(object)) interiorBlackRestore.set(object, { kind: 'light', intensity: object.intensity });
                         object.intensity = 0;
@@ -1053,6 +944,62 @@
         function setupUIEventListeners() {
             const btnToggleUI = document.getElementById('btn-toggle-ui');
             const btnClosePanel = document.getElementById('btn-close-panel');
+            const btnGlow = document.getElementById('btn-glow-toggle');
+
+            // Relocate the existing controls (not clones) so their original handlers/state remain intact.
+            const quickControls = document.getElementById('quick-controls');
+            const seatWrap = document.getElementById('btn-choose-seat').parentElement;
+            document.getElementById('side-seat-slot').appendChild(seatWrap);
+            document.getElementById('side-rim-slot').appendChild(btnGlow);
+            // Keep the original ratio controls hidden in their source wrapper; side icons call them directly.
+            document.getElementById('btn-choose-seat').insertAdjacentHTML('beforeend', '<span class="tool-label">Seat No.</span>');
+            btnGlow.insertAdjacentHTML('beforeend', '<span class="tool-label">Rim Light Glow</span>');
+            quickControls.style.display = 'none';
+
+            // Side shortcuts invoke the original controls, preserving their existing behavior.
+            const sideRatioToggle = document.getElementById('side-ratio-toggle');
+            function syncSideRatioToggle() {
+                const ratioLabel = state.aspectRatio >= 1.6 ? '1.90:1' : '1.43:1';
+                sideRatioToggle.querySelector('.tool-label').textContent = 'Aspect ' + ratioLabel;
+                sideRatioToggle.title = 'Aspect Ratio ' + ratioLabel + ' (tap to toggle)';
+                sideRatioToggle.setAttribute('aria-label', 'Current aspect ratio ' + ratioLabel + '. Tap to toggle');
+            }
+            sideRatioToggle.addEventListener('click', () => {
+                const nextRatio = state.aspectRatio >= 1.6 ? '1.43' : '1.90';
+                document.querySelector('.btn-aspect[data-ratio="' + nextRatio + '"]').click();
+            });
+            syncSideRatioToggle();
+            document.getElementById('side-imax-toggle').addEventListener('click', () => document.getElementById('btn-screenx').click());
+            document.getElementById('side-fit-toggle').addEventListener('click', () => document.getElementById('btn-edge-fit').click());
+            document.getElementById('side-theme-toggle').addEventListener('click', () => {
+                if (state.themeMode === 'dark') document.getElementById('btn-theme-glow').click();
+                else document.getElementById('btn-theme-dark').click();
+                const glowMode = state.themeMode === 'glow';
+                const themeButton = document.getElementById('side-theme-toggle');
+                themeButton.querySelector('i').className = glowMode ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+                themeButton.querySelector('.tool-label').textContent = glowMode ? 'Full Ambilight' : 'Dark Cinema';
+            });
+            // Tapping an icon performs its action and reveals the label; hover works on desktop.
+            document.querySelectorAll('.cinema-side-tools button, .cinema-icon-tool').forEach(tool => tool.addEventListener('click', () => {
+                tool.classList.add('label-open');
+                window.setTimeout(() => tool.classList.remove('label-open'), 1500);
+            }));
+            // The old eye / eye-slash toolbar visibility buttons are intentionally removed.
+            const restoreToolbar = document.getElementById('btn-restore-toolbar');
+            if (restoreToolbar) restoreToolbar.remove();
+            const oldHideToolbar = document.getElementById('btn-hide-toolbar');
+            if (oldHideToolbar) oldHideToolbar.remove();
+
+            btnGlow.addEventListener('click', () => {
+                state.glowEnabled = !state.glowEnabled;
+                btnGlow.querySelector('#glow-toggle-text').textContent = state.glowEnabled ? 'Rim Glow: ON' : 'Rim Glow: OFF';
+                btnGlow.setAttribute('aria-pressed', String(state.glowEnabled));
+                btnGlow.classList.toggle('bg-indigo-600/20', state.glowEnabled);
+                btnGlow.classList.toggle('text-indigo-300', state.glowEnabled);
+                btnGlow.classList.toggle('text-slate-400', !state.glowEnabled);
+                if (screenRimGlowMesh) screenRimGlowMesh.material.opacity = state.glowEnabled ? 0.35 : 0;
+                saveSettings();
+            });
 
             btnToggleUI.addEventListener('click', () => {
                 controlsPanel.classList.toggle('translate-x-0');
@@ -1065,115 +1012,204 @@
 
             document.getElementById('btn-screenx').addEventListener('click', () => { setScreenXMode(!state.screenX); saveSettings(); });
 
-            // On-device AI depth estimation (Transformers.js + Depth Anything Small).
-            aiDepthImageInput.addEventListener('change', (e) => {
-                aiDepthSourceFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-                if (aiDepthSourceFile) {
-                    document.getElementById('depth-map-file-name').textContent = aiDepthSourceFile.name;
-                    document.getElementById('ai-depth-status').textContent = 'Image selected. Tap Generate AI Depth.';
-                }
+            // AI video depth is precomputed from sampled frames before playback. The frame cache
+            // keeps inference out of the real-time render loop; mobile devices analyze at most 120 frames.
+            const analyzeVideoDepthButton = document.getElementById('btn-analyze-video-depth');
+            const cancelVideoDepthButton = document.getElementById('btn-cancel-video-analysis');
+            const playWhenReadyButton = document.getElementById('btn-play-when-ready');
+            const videoDepthProgressWrap = document.getElementById('video-depth-progress-wrap');
+            const videoDepthProgress = document.getElementById('video-depth-progress');
+            const videoDepthProgressLabel = document.getElementById('video-depth-progress-label');
+
+            function setVideoDepthProgress(done, total, message) {
+                const percent = total > 0 ? Math.round(done / total * 100) : 0;
+                videoDepthProgress.style.width = percent + '%';
+                videoDepthProgressLabel.textContent = message || (percent + '% · ' + done + '/' + total + ' frames');
+            }
+
+            function setPlayWhenReadyEnabled(enabled) {
+                playWhenReadyButton.disabled = !enabled;
+                playWhenReadyButton.style.opacity = enabled ? '1' : '0.5';
+                playWhenReadyButton.style.cursor = enabled ? 'pointer' : 'not-allowed';
+            }
+
+            function setAnalysisBusy(busy) {
+                analyzeVideoDepthButton.disabled = busy;
+                analyzeVideoDepthButton.style.opacity = busy ? '0.5' : '1';
+                cancelVideoDepthButton.hidden = !busy;
+                cancelVideoDepthButton.disabled = !busy;
+                cancelVideoDepthButton.style.opacity = busy ? '1' : '0.5';
+            }
+
+            cancelVideoDepthButton.addEventListener('click', () => {
+                if (!videoDepthAnalysisInProgress) return;
+                videoDepthAnalysisCancelled = true;
+                cancelVideoDepthButton.disabled = true;
+                cancelVideoDepthButton.textContent = 'Cancelling…';
+                document.getElementById('ai-depth-status').textContent = 'Cancelling analysis safely…';
             });
 
-            document.getElementById('btn-ai-depth').addEventListener('click', async () => {
+            function waitForVideoEvent(el, eventName, timeoutMs = 15000) {
+                return new Promise((resolve, reject) => {
+                    let timer;
+                    const cleanup = () => {
+                        el.removeEventListener(eventName, onEvent);
+                        el.removeEventListener('error', onError);
+                        if (timer) clearTimeout(timer);
+                    };
+                    const onEvent = () => { cleanup(); resolve(); };
+                    const onError = () => { cleanup(); reject(new Error('Could not read video frames. Check that the video is supported and loaded.')); };
+                    el.addEventListener(eventName, onEvent, { once: true });
+                    el.addEventListener('error', onError, { once: true });
+                    timer = setTimeout(() => { cleanup(); reject(new Error('Timed out while loading/seeking the video. Try a shorter or locally stored video.')); }, timeoutMs);
+                });
+            }
+
+            async function analyzeCurrentVideoForDepth() {
                 const status = document.getElementById('ai-depth-status');
-                const btn = document.getElementById('btn-ai-depth');
-                if (!aiDepthSourceFile) {
-                    status.textContent = 'Choose an image first.';
-                    aiDepthImageInput.click();
+                if (videoDepthAnalysisInProgress) return;
+                if (!video.currentSrc && !video.src) {
+                    status.textContent = 'Upload or load a video first.';
+                    videoFileInput.click();
                     return;
                 }
-                btn.disabled = true;
-                btn.style.opacity = '0.6';
-                status.textContent = 'Loading AI depth model… first run may take a while and needs internet.';
-                let objectUrl = null;
+                if (!Number.isFinite(video.duration) || video.duration <= 0) {
+                    status.textContent = 'Wait until video metadata is loaded, then analyze again.';
+                    return;
+                }
+                videoDepthAnalysisCancelled = false;
+                currentAppliedDepthFrameIndex = -1;
+                videoDepthAnalysisReady = false;
+                videoDepthAnalysisInProgress = true;
+                video.pause();
+                setPlayWhenReadyEnabled(false);
+                setAnalysisBusy(true);
+                cancelVideoDepthButton.textContent = 'Cancel analysis';
+                videoDepthProgressWrap.classList.remove('hidden');
+                videoDepthProgressWrap.classList.add('flex');
+                setVideoDepthProgress(0, 1, 'Loading AI model…');
+                let analysisVideo = null;
                 try {
-                    if (!aiDepthPipelinePromise) {
-                        aiDepthPipelinePromise = import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
-                    }
+                    if (!aiDepthPipelinePromise) aiDepthPipelinePromise = import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2');
                     const { pipeline, env } = await aiDepthPipelinePromise;
                     env.allowLocalModels = false;
                     if (!window.__imaxDepthEstimator) {
-                        window.__imaxDepthEstimator = await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small', {
-                            device: 'webgpu'
-                        }).catch(async () => await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small'));
+                        window.__imaxDepthEstimator = await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small', { device: 'webgpu' })
+                            .catch(async () => await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small'));
                     }
-                    status.textContent = 'Analysing image with AI…';
-                    objectUrl = URL.createObjectURL(aiDepthSourceFile);
-                    const result = await window.__imaxDepthEstimator(objectUrl);
-                    const depth = result && (result.predicted_depth || result.depth);
-                    if (!depth || !depth.data || !depth.width || !depth.height) throw new Error('The model returned no usable depth map.');
-                    let min = Infinity, max = -Infinity;
-                    for (let i = 0; i < depth.data.length; i++) {
-                        const v = Number(depth.data[i]);
-                        if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
-                    }
-                    if (!Number.isFinite(min) || !Number.isFinite(max) || max - min < 1e-8) throw new Error('Depth range was too small to use.');
-                    const count = depthCanvas.width * depthCanvas.height;
-                    depthDataArray = new Uint8Array(count);
-                    depthAnalysisTarget = new Uint8Array(count);
-                    for (let y = 0; y < depthCanvas.height; y++) {
-                        const sy = Math.min(depth.height - 1, Math.floor(y / depthCanvas.height * depth.height));
-                        for (let x = 0; x < depthCanvas.width; x++) {
-                            const sx = Math.min(depth.width - 1, Math.floor(x / depthCanvas.width * depth.width));
-                            const v = Number(depth.data[sy * depth.width + sx]);
-                            const norm = Number.isFinite(v) ? (v - min) / (max - min) : 0.5;
-                            depthDataArray[y * depthCanvas.width + x] = Math.round(255 * norm);
+                    if (videoDepthAnalysisCancelled) throw new Error('Analysis cancelled.');
+                    const estimator = window.__imaxDepthEstimator;
+                    analysisVideo = document.createElement('video');
+                    analysisVideo.muted = true;
+                    analysisVideo.preload = 'auto';
+                    analysisVideo.playsInline = true;
+                    analysisVideo.crossOrigin = 'anonymous';
+                    analysisVideo.src = video.currentSrc || video.src;
+                    analysisVideo.load();
+                    if (analysisVideo.readyState < 1) await waitForVideoEvent(analysisVideo, 'loadedmetadata');
+                    if (analysisVideo.readyState < 2) await waitForVideoEvent(analysisVideo, 'loadeddata');
+                    const duration = Math.min(video.duration, analysisVideo.duration || video.duration);
+                    const frameCount = Math.max(1, Math.min(120, Math.ceil(duration / Math.max(2.5, duration / 120))));
+                    const interval = frameCount > 1 ? duration / (frameCount - 1) : 0;
+                    const sampleCanvas = document.createElement('canvas');
+                    sampleCanvas.width = 320;
+                    sampleCanvas.height = 180;
+                    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+                    const frames = [];
+                    setVideoDepthProgress(0, frameCount, 'AI model ready · analyzing video…');
+                    for (let i = 0; i < frameCount; i++) {
+                        if (videoDepthAnalysisCancelled) throw new Error('Analysis cancelled.');
+                        const target = Math.min(Math.max(0, duration - 0.05), i * interval);
+                        if (Math.abs(analysisVideo.currentTime - target) > 0.03) {
+                            const seeked = waitForVideoEvent(analysisVideo, 'seeked');
+                            analysisVideo.currentTime = target;
+                            await seeked;
                         }
+                        sampleCtx.drawImage(analysisVideo, 0, 0, sampleCanvas.width, sampleCanvas.height);
+                        const result = await estimator(sampleCanvas);
+                        if (videoDepthAnalysisCancelled) throw new Error('Analysis cancelled.');
+                        // Transformers.js normally returns `depth` as a RawImage (with width/height)
+                        // and `predicted_depth` as a Tensor (with dims). Prefer the image result;
+                        // older code picked the Tensor first and incorrectly rejected valid frames.
+                        const rawDepth = result && result.depth && result.depth.data ? result.depth : null;
+                        const tensorDepth = result && result.predicted_depth && result.predicted_depth.data ? result.predicted_depth : null;
+                        const depth = rawDepth || tensorDepth;
+                        const dims = depth && (depth.dims || depth.shape);
+                        const depthWidth = depth && Number.isFinite(depth.width) ? depth.width : (dims && dims.length ? Number(dims[dims.length - 1]) : 0);
+                        const depthHeight = depth && Number.isFinite(depth.height) ? depth.height : (dims && dims.length > 1 ? Number(dims[dims.length - 2]) : 0);
+                        if (!depth || !depth.data || !depthWidth || !depthHeight || depth.data.length < depthWidth * depthHeight) {
+                            throw new Error('AI returned an unsupported depth output format.');
+                        }
+                        let min = Infinity, max = -Infinity;
+                        for (let j = 0; j < depthWidth * depthHeight; j++) {
+                            const v = Number(depth.data[j]);
+                            if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
+                        }
+                        if (!Number.isFinite(min) || !Number.isFinite(max) || max - min < 1e-8) throw new Error('AI depth range was too small.');
+                        const normalized = new Uint8Array(depthCanvas.width * depthCanvas.height);
+                        for (let y = 0; y < depthCanvas.height; y++) {
+                            const sy = Math.min(depthHeight - 1, Math.floor(y / depthCanvas.height * depthHeight));
+                            for (let x = 0; x < depthCanvas.width; x++) {
+                                const sx = Math.min(depthWidth - 1, Math.floor(x / depthCanvas.width * depthWidth));
+                                const v = Number(depth.data[sy * depthWidth + sx]);
+                                normalized[y * depthCanvas.width + x] = Math.round(255 * (Number.isFinite(v) ? (v - min) / (max - min) : 0.5));
+                            }
+                        }
+                        frames.push({ time: target, data: normalized });
+                        setVideoDepthProgress(i + 1, frameCount);
+                        status.textContent = 'Analyzing video with AI · frame ' + (i + 1) + ' of ' + frameCount + '…';
                     }
-                    state.depthMode = 'externalDepthMap';
+                    precomputedVideoDepthFrames = frames;
+                    currentAppliedDepthFrameIndex = -1;
+                    videoDepthAnalysisReady = true;
+                    state.depthMode = 'aiVideoDepth';
                     document.getElementById('select-depth-mode').value = state.depthMode;
+                    applyPrecomputedVideoDepth();
                     updateDepthMeshDisplacement();
+                    setPlayWhenReadyEnabled(true);
+                    status.textContent = 'Video analysis complete. Press “Play when ready” to start.';
+                    updateStatus('AI VIDEO DEPTH READY');
                     saveSettings();
-                    status.textContent = 'AI depth map ready. Adjust Depth Displacement Strength gently to avoid black gaps.';
-                    updateStatus('AI DEPTH ESTIMATION COMPLETE');
                 } catch (err) {
-                    console.error('AI depth estimation failed:', err);
-                    status.textContent = 'AI depth failed: ' + (err && err.message ? err.message.slice(0, 150) : 'unknown error') + '. Try Chrome/Edge with internet, or upload a prepared depth map.';
-                    updateStatus('AI DEPTH ERROR · FALLBACK AVAILABLE');
+                    const message = err && err.message ? err.message : 'unknown error';
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
+                    setPlayWhenReadyEnabled(false);
+                    if (videoDepthAnalysisCancelled || /cancelled/i.test(message)) {
+                        status.textContent = 'Analysis cancelled. You can analyze again or use Luma Depth.';
+                        updateStatus('AI VIDEO DEPTH CANCELLED');
+                    } else {
+                        console.error('AI video depth analysis failed:', err);
+                        status.textContent = 'Video analysis failed: ' + message.slice(0, 120) + '. Retry or use Luma Depth as fallback.';
+                        updateStatus('AI VIDEO DEPTH ERROR · FALLBACK AVAILABLE');
+                    }
                 } finally {
-                    if (objectUrl) URL.revokeObjectURL(objectUrl);
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
+                    if (analysisVideo) { analysisVideo.pause(); analysisVideo.removeAttribute('src'); analysisVideo.load(); }
+                    videoDepthAnalysisInProgress = false;
+                    setAnalysisBusy(false);
+                    cancelVideoDepthButton.textContent = 'Cancel analysis';
+                    videoDepthProgressWrap.classList.remove('flex');
+                    videoDepthProgressWrap.classList.add('hidden');
                 }
-            });
+            }
 
-            // Advanced Depth Controls Wiring
-            depthMapFileInput.addEventListener('change', (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (!file) return;
-                const objectUrl = URL.createObjectURL(file);
-                const img = new Image();
-                img.onload = () => {
-                    try {
-                        depthCtx.clearRect(0, 0, depthCanvas.width, depthCanvas.height);
-                        depthCtx.drawImage(img, 0, 0, depthCanvas.width, depthCanvas.height);
-                        const pixels = depthCtx.getImageData(0, 0, depthCanvas.width, depthCanvas.height).data;
-                        const count = depthCanvas.width * depthCanvas.height;
-                        depthDataArray = new Uint8Array(count);
-                        depthAnalysisTarget = new Uint8Array(count);
-                        let minLuma = 255, maxLuma = 0;
-                        for (let i = 0, p = 0; i < pixels.length; i += 4, p++) {
-                            const luma = Math.round(0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]);
-                            depthDataArray[p] = luma;
-                            if (luma < minLuma) minLuma = luma;
-                            if (luma > maxLuma) maxLuma = luma;
-                        }
-                        state.depthMode = 'externalDepthMap';
-                        document.getElementById('select-depth-mode').value = state.depthMode;
-                        document.getElementById('depth-map-file-name').textContent = file.name;
-                        updateDepthMeshDisplacement();
-                        saveSettings();
-                        updateStatus(`EXTERNAL DEPTH MAP LOADED · RANGE ${minLuma}-${maxLuma}`);
-                    } catch (err) {
-                        updateStatus('DEPTH MAP ERROR · TRY ANOTHER IMAGE');
-                    } finally { URL.revokeObjectURL(objectUrl); }
-                };
-                img.onerror = () => { URL.revokeObjectURL(objectUrl); updateStatus('DEPTH MAP ERROR · INVALID IMAGE'); };
-                img.src = objectUrl;
+
+            analyzeVideoDepthButton.addEventListener('click', analyzeCurrentVideoForDepth);
+            playWhenReadyButton.addEventListener('click', () => {
+                if (!videoDepthAnalysisReady || videoDepthAnalysisInProgress) return;
+                state.depthMode = 'aiVideoDepth';
+                document.getElementById('select-depth-mode').value = state.depthMode;
+                applyPrecomputedVideoDepth();
+                updateDepthMeshDisplacement();
+                video.play().then(() => updatePlayButtonUI(true)).catch(() => { const statusEl = document.getElementById('ai-depth-status'); statusEl.textContent = 'Analysis is ready. Tap the main Play button to begin playback.'; });
             });
 
             document.getElementById('select-depth-mode').addEventListener('change', (e) => {
                 state.depthMode = e.target.value;
+                if (state.depthMode === 'aiVideoDepth' && !videoDepthAnalysisReady) {
+                    document.getElementById('ai-depth-status').textContent = 'Tap Analyze Video to precompute AI depth before playback.';
+                }
                 updateDepthMeshDisplacement();
                 saveSettings();
                 updateStatus('DEPTH MODE · ' + state.depthMode.toUpperCase());
@@ -1187,77 +1223,14 @@
                 saveSettings();
             });
 
-            const btnPopout = document.getElementById('btn-popout-toggle');
-            btnPopout.addEventListener('click', () => {
-                state.popoutEnabled = !state.popoutEnabled;
-                btnPopout.textContent = state.popoutEnabled ? 'ON' : 'OFF';
-                btnPopout.setAttribute('aria-pressed', String(state.popoutEnabled));
-                btnPopout.classList.toggle('bg-indigo-600/20', state.popoutEnabled);
-                if (popoutGroup) popoutGroup.visible = state.popoutEnabled && state.demoObjects;
-                saveSettings();
-            });
-
-            const sliderPopoutDist = document.getElementById('slider-popout-dist');
-            sliderPopoutDist.addEventListener('input', (e) => {
-                state.popoutDistance = parseFloat(e.target.value);
-                document.getElementById('val-popout-dist').textContent = `${state.popoutDistance.toFixed(1)}m`;
-                saveSettings();
-            });
-
-            const btnDemoMode = document.getElementById('btn-demo-mode');
-            btnDemoMode.addEventListener('click', () => {
-                state.demoObjects = !state.demoObjects;
-                btnDemoMode.textContent = state.demoObjects ? 'ON' : 'OFF';
-                btnDemoMode.setAttribute('aria-pressed', String(state.demoObjects));
-                btnDemoMode.classList.toggle('text-indigo-300', state.demoObjects);
-                btnDemoMode.classList.toggle('border-indigo-500/50', state.demoObjects);
-                btnDemoMode.classList.toggle('bg-indigo-600/20', state.demoObjects);
-                if (popoutGroup) popoutGroup.visible = state.popoutEnabled && state.demoObjects;
-                saveSettings();
-            });
-
-            const btnParticles = document.getElementById('btn-particles-toggle');
-            btnParticles.addEventListener('click', () => {
-                state.particlesEnabled = !state.particlesEnabled;
-                btnParticles.textContent = state.particlesEnabled ? 'ON' : 'OFF';
-                btnParticles.setAttribute('aria-pressed', String(state.particlesEnabled));
-                btnParticles.classList.toggle('bg-indigo-600/20', state.particlesEnabled);
-                if (particleSystem) particleSystem.visible = state.particlesEnabled;
-                saveSettings();
-            });
-
-            const btnRays = document.getElementById('btn-rays-toggle');
-            btnRays.addEventListener('click', () => {
-                state.raysEnabled = !state.raysEnabled;
-                btnRays.textContent = state.raysEnabled ? 'ON' : 'OFF';
-                btnRays.setAttribute('aria-pressed', String(state.raysEnabled));
-                btnRays.classList.toggle('bg-indigo-600/20', state.raysEnabled);
-                if (lightRayGroup) lightRayGroup.visible = state.raysEnabled;
-                saveSettings();
-            });
-
             document.getElementById('btn-reset-depth').addEventListener('click', () => {
                 state.depthMode = 'parallax';
                 state.depthStrength = 0.45;
-                state.popoutEnabled = true;
-                state.popoutDistance = 2.5;
-                state.demoObjects = false;
-                state.particlesEnabled = true;
-                state.raysEnabled = true;
                 state.glowEnabled = true;
                 document.getElementById('select-depth-mode').value = 'parallax';
                 document.getElementById('slider-depth-strength').value = 0.45;
                 document.getElementById('val-depth-strength').textContent = '0.45';
-                document.getElementById('slider-popout-dist').value = 2.5;
-                document.getElementById('val-popout-dist').textContent = '2.5m';
-                btnPopout.textContent = 'ON';
-                btnDemoMode.textContent = 'OFF';
-                btnParticles.textContent = 'ON';
-                btnRays.textContent = 'ON';
                 btnGlow.textContent = 'ON';
-                if (particleSystem) particleSystem.visible = true;
-                if (lightRayGroup) lightRayGroup.visible = true;
-                if (popoutGroup) popoutGroup.visible = false;
                 updateDepthMeshDisplacement();
                 saveSettings();
                 updateStatus('DEPTH RESET');
@@ -1273,16 +1246,25 @@
                     preFitCamera = { position: camera.position.clone(), fov: camera.fov, target: controls.target.clone() };
                     const screenHeight = 14 * state.scale;
                     const screenWidth = screenHeight * state.aspectRatio;
-                    const portrait = window.innerHeight >= window.innerWidth;
-                    const margin = portrait ? 1.06 : 1.12;
-                    const verticalDistance = (screenHeight * margin / 2) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-                    const horizontalFov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
-                    const horizontalDistance = (screenWidth * margin / 2) / Math.tan(horizontalFov / 2);
+                    // Fit the screen symmetrically: keep camera and target at the same
+                    // height so the view stays level instead of looking down from above.
+                    const viewWidth = Math.max(1, renderer.domElement.clientWidth || window.innerWidth);
+                    const viewHeight = Math.max(1, renderer.domElement.clientHeight || window.innerHeight);
+                    const margin = viewHeight >= viewWidth ? 1.10 : 1.08;
+                    const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+                    const actualAspect = viewWidth / viewHeight;
+                    const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * actualAspect);
+                    const verticalDistance = (screenHeight * margin / 2) / Math.tan(verticalHalfFov);
+                    const horizontalDistance = (screenWidth * margin / 2) / Math.tan(horizontalHalfFov);
                     const distance = Math.max(verticalDistance, horizontalDistance, 8);
-                    camera.position.set(0, screenHeight / 2 - 0.5, distance);
-                    controls.target.set(0, screenHeight / 2 - 2, 0);
+                    // The cinema screen is centered around Y=5 in the original scene.
+                    // Keep the fit target aligned with the real screen center on both desktop and mobile.
+                    const screenCenterY = 5;
+                    camera.position.set(0, screenCenterY, distance);
+                    controls.target.set(0, screenCenterY, 0);
+                    camera.lookAt(controls.target);
                     controls.update();
-                    updateStatus('EDGE FIT · GEOMETRY PRESERVED');
+                    updateStatus('SYMMETRIC FIT · LEVEL VIEW');
                 } else {
                     if (preFitCamera) {
                         camera.position.copy(preFitCamera.position);
@@ -1357,11 +1339,38 @@
                     const targetBtn = e.currentTarget;
                     targetBtn.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-400');
                     targetBtn.classList.remove('border-transparent', 'text-slate-300');
+                    document.querySelectorAll('.btn-aspect').forEach(b => b.setAttribute('aria-pressed', String(b === targetBtn)));
 
                     state.aspectRatio = parseFloat(targetBtn.getAttribute('data-ratio'));
+                    const sideRatioToggle = document.getElementById('side-ratio-toggle');
+                    if (sideRatioToggle) {
+                        const ratioLabel = state.aspectRatio >= 1.6 ? '1.90:1' : '1.43:1';
+                        sideRatioToggle.querySelector('.tool-label').textContent = 'Aspect ' + ratioLabel;
+                        sideRatioToggle.title = 'Aspect Ratio ' + ratioLabel + ' (tap to toggle)';
+                        sideRatioToggle.setAttribute('aria-label', 'Current aspect ratio ' + ratioLabel + '. Tap to toggle');
+                    }
                     createIMAXScreen();
                     saveSettings();
                 });
+            });
+
+            // Curvature is hidden behind a dedicated main-screen button; no slider is shown until requested.
+            const curvatureToggle = document.getElementById('side-curvature');
+            const curvaturePopover = document.getElementById('curvature-popover');
+            function setCurvaturePopover(open) {
+                curvaturePopover.hidden = !open;
+                curvatureToggle.setAttribute('aria-expanded', String(open));
+            }
+            curvatureToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setCurvaturePopover(curvaturePopover.hidden);
+            });
+            curvaturePopover.addEventListener('click', (e) => e.stopPropagation());
+            document.addEventListener('click', (e) => {
+                if (!curvaturePopover.hidden && !document.getElementById('side-curvature-wrap').contains(e.target)) setCurvaturePopover(false);
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !curvaturePopover.hidden) { setCurvaturePopover(false); curvatureToggle.focus(); }
             });
 
             // Continuous curvature
@@ -1407,7 +1416,7 @@
                 const opening = seatPicker.classList.contains('hidden');
                 seatPicker.classList.toggle('hidden', !opening);
                 seatToggle.setAttribute('aria-expanded', String(opening));
-                seatToggle.textContent = opening ? 'Hide Seat Numbers' : 'Choose Seat Number';
+                document.getElementById('seat-toggle-text').textContent = opening ? 'Hide Seats' : 'Seat No.';
             });
             // 3 rows x 5 seats = 15 individually selectable viewpoints.
             for (let row = 0; row < 3; row++) {
@@ -1429,6 +1438,8 @@
                         const screenWidth = screenHeight * state.aspectRatio;
                         const screenCenterY = screenHeight / 2 - 2;
                         state.seatPreset = 'custom';
+                        state.selectedSeatNo = seatNo;
+                        state.seatX = xOffset;
                         state.curDistance = distance;
                         state.seatEyeY = eyeY;
                         camera.position.set(xOffset, eyeY, distance);
@@ -1446,6 +1457,7 @@
                         const horizontalNeedAsVertical = 2 * Math.atan((halfWidthFromSeat * 1.08) / (safeDistance * Math.max(0.3, camera.aspect)));
                         const fittedFov = THREE.MathUtils.radToDeg(Math.max(verticalNeed, horizontalNeedAsVertical));
                         camera.fov = THREE.MathUtils.clamp(fittedFov, 45, 150);
+                        state.fov = Math.round(camera.fov);
                         camera.updateProjectionMatrix();
                         document.getElementById('slider-fov').value = Math.round(camera.fov);
                         document.getElementById('val-fov').textContent = `${Math.round(camera.fov)}°`;
@@ -1465,6 +1477,16 @@
                     seatGrid.appendChild(seatBtn);
                 }
             }
+            if (state.selectedSeatNo) {
+                const restoredSeat = seatGrid.querySelectorAll('button')[state.selectedSeatNo - 1];
+                const restoredRow = Math.floor((state.selectedSeatNo - 1) / 5);
+                const restoredCol = (state.selectedSeatNo - 1) % 5;
+                if (restoredSeat) {
+                    restoredSeat.classList.remove('bg-slate-900', 'text-slate-300', 'border-slate-700');
+                    restoredSeat.classList.add('bg-cyan-600', 'text-white', 'border-cyan-400');
+                    seatLabel.textContent = `Selected: Row ${String.fromCharCode(65 + restoredRow)}, Seat ${restoredCol + 1} (Seat ${state.selectedSeatNo})`;
+                }
+            }
 
             document.getElementById('slider-side-light').addEventListener('input', (e) => {
                 state.sideWallIntensity = parseFloat(e.target.value);
@@ -1476,7 +1498,7 @@
             document.getElementById('btn-reset-settings').addEventListener('click', () => {
                 state.aspectRatio = 1.43; state.curvature = 0.35; state.sideWallIntensity = 0.35; state.edgeFit = false;
                 document.getElementById('btn-edge-fit').setAttribute('aria-pressed', 'false'); document.getElementById('btn-edge-fit').classList.remove('control-active'); preFitCamera = null;
-                state.scale = 1.0; state.fov = 65; state.lightIntensity = 0.8; state.themeMode = 'dark'; state.quality = 'medium';
+                state.scale = 1.0; state.fov = 65; state.lightIntensity = 0.8; state.themeMode = 'dark'; state.quality = 'medium'; state.depthMode = 'parallax'; state.depthStrength = 0.45; state.glowEnabled = true;
                 document.querySelectorAll('.btn-aspect').forEach(b => {
                     const active = parseFloat(b.dataset.ratio) === 1.43;
                     b.classList.toggle('border-blue-500', active); b.classList.toggle('bg-blue-600/20', active); b.classList.toggle('text-blue-400', active);
@@ -1487,12 +1509,16 @@
                 document.getElementById('slider-light').value = 0.8; document.getElementById('val-light').textContent = '80%';
                 document.getElementById('slider-side-light').value = 0.35; document.getElementById('val-side-light').textContent = '35%';
                 document.getElementById('select-quality').value = 'medium'; applyGraphicsQuality();
+                document.getElementById('select-depth-mode').value = 'parallax'; document.getElementById('slider-depth-strength').value = 0.45; document.getElementById('val-depth-strength').textContent = '0.45';
+                const resetGlowButton = document.getElementById('btn-glow-toggle'); resetGlowButton.setAttribute('aria-pressed', 'true'); resetGlowButton.querySelector('#glow-toggle-text').textContent = 'Rim Glow: ON'; resetGlowButton.classList.add('bg-indigo-600/20', 'text-indigo-200'); resetGlowButton.classList.remove('text-slate-400'); if (screenRimGlowMesh) screenRimGlowMesh.material.opacity = 0.35;
                 camera.fov = 65; camera.updateProjectionMatrix();
                 scene.fog.density = 0.018;
                 document.getElementById('btn-theme-dark').className = 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-blue-500 text-blue-400 font-medium';
                 document.getElementById('btn-theme-glow').className = 'glass-panel py-1.5 px-2 rounded-lg text-xs border border-transparent text-slate-400 hover:text-white';
-                state.curDistance = 22; state.seatEyeY = -0.3; state.seatPreset = 'center';
-                camera.position.set(0, state.seatEyeY, state.curDistance);
+                state.curDistance = 22; state.seatEyeY = -0.3; state.seatX = 0; state.selectedSeatNo = null; state.seatPreset = 'center';
+                document.getElementById('selected-seat-label').textContent = 'No seat selected';
+                document.querySelectorAll('#seat-grid button').forEach(b => { b.classList.remove('bg-cyan-600', 'text-white', 'border-cyan-400'); b.classList.add('bg-slate-900', 'text-slate-300', 'border-slate-700'); });
+                camera.position.set(state.seatX, state.seatEyeY, state.curDistance);
                 controls.target.set(0, 5, 0); controls.update(); updateDepthMeshDisplacement();
                 if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * 0.92; wallGlowRight.intensity = state.sideWallIntensity * 0.92; }
                 if (state.screenX) setScreenXMode(false); else createIMAXScreen();
@@ -1506,11 +1532,6 @@
                 saveSettings();
                 updateStatus('QUALITY · ' + state.quality.toUpperCase());
             });
-            document.getElementById('btn-save-settings').addEventListener('click', () => {
-                saveSettings();
-                updateStatus('SETTINGS SAVED');
-            });
-
             document.getElementById('btn-theme-dark').addEventListener('click', (e) => {
                 state.themeMode = 'dark';
                 scene.fog.density = 0.018;
@@ -1543,15 +1564,13 @@
                 if (['dark','glow'].includes(saved.themeMode)) state.themeMode = saved.themeMode;
                 if (['low','medium','high'].includes(saved.quality)) state.quality = saved.quality;
                 state.screenX = Boolean(saved.screenX);
-                if (Number.isFinite(Number(saved.curDistance))) state.curDistance = Math.max(14, Math.min(32, Number(saved.curDistance)));
+                if (Number.isFinite(Number(saved.curDistance))) state.curDistance = Math.max(9, Math.min(32, Number(saved.curDistance)));
+                if (Number.isFinite(Number(saved.seatEyeY))) state.seatEyeY = Math.max(-3, Math.min(2, Number(saved.seatEyeY)));
+                if (Number.isFinite(Number(saved.seatX))) state.seatX = Math.max(-6, Math.min(6, Number(saved.seatX)));
+                if (Number.isInteger(Number(saved.selectedSeatNo)) && Number(saved.selectedSeatNo) >= 1 && Number(saved.selectedSeatNo) <= 15) state.selectedSeatNo = Number(saved.selectedSeatNo);
 
-                if (['off','parallax','depthMap','externalDepthMap'].includes(saved.depthMode)) state.depthMode = saved.depthMode;
+                if (['off','parallax','depthMap','aiVideoDepth'].includes(saved.depthMode)) state.depthMode = saved.depthMode;
                 if (Number.isFinite(Number(saved.depthStrength))) state.depthStrength = Number(saved.depthStrength);
-                if (typeof saved.popoutEnabled === 'boolean') state.popoutEnabled = saved.popoutEnabled;
-                if (Number.isFinite(Number(saved.popoutDistance))) state.popoutDistance = Number(saved.popoutDistance);
-                if (typeof saved.demoObjects === 'boolean') state.demoObjects = saved.demoObjects;
-                if (typeof saved.particlesEnabled === 'boolean') state.particlesEnabled = saved.particlesEnabled;
-                if (typeof saved.raysEnabled === 'boolean') state.raysEnabled = saved.raysEnabled;
                 if (typeof saved.glowEnabled === 'boolean') state.glowEnabled = saved.glowEnabled;
             } catch (_) { /* Storage fallback */ }
         }
@@ -1563,13 +1582,16 @@
                     sideWallIntensity: state.sideWallIntensity, scale: state.scale,
                     fov: state.fov, lightIntensity: state.lightIntensity,
                     themeMode: state.themeMode, quality: state.quality,
-                    screenX: state.screenX, curDistance: state.curDistance,
+                    screenX: state.screenX, curDistance: state.curDistance, seatEyeY: state.seatEyeY, seatX: state.seatX, selectedSeatNo: state.selectedSeatNo,
                     depthMode: state.depthMode, depthStrength: state.depthStrength,
-                    popoutEnabled: state.popoutEnabled, popoutDistance: state.popoutDistance,
-                    demoObjects: state.demoObjects, particlesEnabled: state.particlesEnabled,
-                    raysEnabled: state.raysEnabled, glowEnabled: state.glowEnabled
+                    glowEnabled: state.glowEnabled
                 }));
-            } catch (_) { /* Keep simulator usable if storage is blocked */ }
+                const saveStatus = document.getElementById('autosave-status');
+                if (saveStatus) saveStatus.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i>Auto-saved';
+            } catch (_) {
+                const saveStatus = document.getElementById('autosave-status');
+                if (saveStatus) saveStatus.textContent = 'Auto-save unavailable in this browser';
+            }
         }
 
         function syncSettingsUI() {
@@ -1584,6 +1606,7 @@
             document.getElementById('val-side-light').textContent = `${Math.round(state.sideWallIntensity * 100)}%`;
             document.querySelectorAll('.btn-aspect').forEach(b => {
                 const active = Math.abs(parseFloat(b.dataset.ratio) - state.aspectRatio) < 0.001;
+                b.setAttribute('aria-pressed', String(active));
                 b.classList.toggle('border-blue-500', active); b.classList.toggle('bg-blue-600/20', active); b.classList.toggle('text-blue-400', active);
                 b.classList.toggle('border-transparent', !active); b.classList.toggle('text-slate-300', !active);
             });
@@ -1592,25 +1615,12 @@
             document.getElementById('select-depth-mode').value = state.depthMode;
             document.getElementById('slider-depth-strength').value = state.depthStrength;
             document.getElementById('val-depth-strength').textContent = state.depthStrength.toFixed(2);
-            document.getElementById('slider-popout-dist').value = state.popoutDistance;
-            document.getElementById('val-popout-dist').textContent = `${state.popoutDistance.toFixed(1)}m`;
-            
-            const btnPopout = document.getElementById('btn-popout-toggle');
-            btnPopout.textContent = state.popoutEnabled ? 'ON' : 'OFF';
-            btnPopout.classList.toggle('bg-indigo-600/20', state.popoutEnabled);
-
-            const btnDemoMode = document.getElementById('btn-demo-mode');
-            btnDemoMode.textContent = state.demoObjects ? 'ON' : 'OFF';
-            btnDemoMode.classList.toggle('text-indigo-300', state.demoObjects);
-            btnDemoMode.classList.toggle('bg-indigo-600/20', state.demoObjects);
-
-            const btnParticles = document.getElementById('btn-particles-toggle');
-            btnParticles.textContent = state.particlesEnabled ? 'ON' : 'OFF';
-            btnParticles.classList.toggle('bg-indigo-600/20', state.particlesEnabled);
-
-            const btnRays = document.getElementById('btn-rays-toggle');
-            btnRays.textContent = state.raysEnabled ? 'ON' : 'OFF';
-            btnRays.classList.toggle('bg-indigo-600/20', state.raysEnabled);
+            const btnGlow = document.getElementById('btn-glow-toggle');
+            btnGlow.querySelector('#glow-toggle-text').textContent = state.glowEnabled ? 'Rim Glow: ON' : 'Rim Glow: OFF';
+            btnGlow.setAttribute('aria-pressed', String(state.glowEnabled));
+            btnGlow.classList.toggle('bg-indigo-600/20', state.glowEnabled);
+            btnGlow.classList.toggle('text-indigo-300', state.glowEnabled);
+            btnGlow.classList.toggle('text-slate-400', !state.glowEnabled);
         }
 
         function syncThemeUI() {
@@ -1673,7 +1683,7 @@
             const verticalFov = 2 * Math.atan((verticalExtent * 1.10) / distance);
             const horizontalFovAsVertical = 2 * Math.atan((horizontalExtent * 1.10) / (distance * Math.max(0.25, camera.aspect)));
             const fitFov = THREE.MathUtils.radToDeg(Math.max(verticalFov, horizontalFovAsVertical));
-            camera.fov = THREE.MathUtils.clamp(Math.max(camera.fov, fitFov), 45, 150);
+            camera.fov = THREE.MathUtils.clamp(Math.max(state.fov || 50, fitFov), 45, 150);
             camera.updateProjectionMatrix();
 
             renderer.setSize(width, height);
@@ -1696,9 +1706,102 @@
 
             controls.update();
             updateDynamicAmbilight();
+            if (screenRimGlowMesh && spotLight) {
+                screenRimGlowMesh.material.color.copy(spotLight.color);
+                screenRimGlowMesh.material.opacity = state.glowEnabled
+                    ? (0.2 + spotLight.intensity * 0.12)
+                    : 0;
+            }
             analyzeVideoDepthMap(timestamp);
+            if (state.depthMode === 'aiVideoDepth' && videoDepthAnalysisReady) applyPrecomputedVideoDepth();
             updateCinematicEffects(timeSec);
 
             renderer.render(scene, camera);
         }
     
+
+
+/* ---- Inline script section 2 ---- */
+
+/* Stable viewport resize: rerender only on settled viewport changes; never accumulate camera zoom. */
+(function () {
+  let resizeTimer = 0;
+  let lastW = 0, lastH = 0;
+  function stableViewportResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      const vv = window.visualViewport;
+      const w = Math.max(1, Math.round(vv && vv.width ? vv.width : window.innerWidth));
+      const h = Math.max(1, Math.round(vv && vv.height ? vv.height : window.innerHeight));
+      if (Math.abs(w - lastW) < 2 && Math.abs(h - lastH) < 2) return;
+      lastW = w; lastH = h;
+      if (typeof onWindowResize === 'function') onWindowResize();
+    }, 140);
+  }
+  window.addEventListener('resize', stableViewportResize, { passive: true });
+  window.addEventListener('orientationchange', function () { setTimeout(stableViewportResize, 220); }, { passive: true });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', stableViewportResize, { passive: true });
+  window.addEventListener('load', stableViewportResize, { once: true, passive: true });
+})();
+
+
+
+/* ---- Inline script section 3 ---- */
+
+(function(){
+  function initRequestedUI(){
+    const panel=document.getElementById('controls-panel');
+    const more=document.querySelector('[data-player-action="more"]');
+    const restore=document.getElementById('btn-restore-toolbar');
+    const oldHide=document.getElementById('btn-hide-toolbar');
+    if(restore) restore.remove();
+    if(oldHide) oldHide.remove();
+    if(panel){
+      panel.classList.remove('translate-x-0');
+      panel.classList.add('menu-closed-from-player');
+      panel.classList.remove('menu-open-from-player');
+    }
+    function togglePanel(ev){
+      if(ev){ev.preventDefault();ev.stopPropagation();}
+      if(!panel) return;
+      const open=!panel.classList.contains('menu-open-from-player');
+      panel.classList.toggle('menu-open-from-player',open);
+      panel.classList.toggle('menu-closed-from-player',!open);
+      if(more) more.setAttribute('aria-expanded',String(open));
+      if(open) showControlsAndResetTimer();
+    }
+    if(more){ more.addEventListener('click',togglePanel,true); more.setAttribute('aria-haspopup','dialog'); more.setAttribute('aria-expanded','false'); }
+    const close=document.getElementById('btn-close-panel');
+    if(close) close.addEventListener('click',function(){
+      if(panel){panel.classList.remove('menu-open-from-player');panel.classList.add('menu-closed-from-player');}
+      if(more) more.setAttribute('aria-expanded','false');
+      showControlsAndResetTimer();
+    },true);
+
+    let idleTimer=null;
+    function showControlsAndResetTimer(){
+      document.body.classList.remove('screen-controls-idle');
+      if(idleTimer) clearTimeout(idleTimer);
+      idleTimer=setTimeout(function(){
+        if(panel && panel.classList.contains('menu-open-from-player')) { showControlsAndResetTimer(); return; }
+        const active=document.activeElement;
+        if(active && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) { showControlsAndResetTimer(); return; }
+        document.body.classList.add('screen-controls-idle');
+      },5000);
+    }
+    // Any deliberate touch/click/keyboard activity reveals all on-screen keys, then hides them
+    // after five seconds of inactivity. Ignore touch pointer-move noise so it cannot keep them visible.
+    ['pointerdown','touchstart','click','keydown','input','change'].forEach(function(evt){
+      document.addEventListener(evt,function(e){
+        if(panel && panel.contains(e.target)) { showControlsAndResetTimer(); return; }
+        showControlsAndResetTimer();
+      },{capture:true,passive:true});
+    });
+    document.addEventListener('mousemove',showControlsAndResetTimer,{passive:true});
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)showControlsAndResetTimer();});
+    showControlsAndResetTimer();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initRequestedUI,{once:true});
+  else initRequestedUI();
+})();
+
