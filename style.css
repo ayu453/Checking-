@@ -1,1 +1,193 @@
 
+        body.cinema-fullscreen-fallback, body.cinema-fullscreen-fallback html {
+            position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; overflow: hidden !important;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050508;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Custom Scrollbar for Control Panel */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.8);
+        }
+
+        /* Range Input Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(10, 15, 26, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Ambient Glow Effect on Container */
+        .glow-border {
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
+        }
+
+        #status-pill { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .control-active { border-color: rgba(59,130,246,.9) !important; background: rgba(37,99,235,.24) !important; color: #93c5fd !important; }
+        @media (max-width: 640px) {
+            #controls-panel { width: min(88vw, 340px); right: 8px; top: 68px; max-height: calc(100vh - 168px); padding: 14px; gap: 14px; }
+            #player-bar { bottom: 8px; width: calc(100% - 16px); padding: 9px; }
+            #btn-fullscreen, #btn-recenter { padding: 9px; }
+        }
+
+        /* Browser-responsive seat picker and side panel. Keep all 15 seats visible. */
+        #seat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        #seat-grid button { min-width: 0; min-height: 30px; font-size: 11px; touch-action: manipulation; }
+        #controls-panel { box-sizing: border-box; overflow-x: hidden; }
+        @media (max-width: 640px) {
+            #seat-grid { gap: 6px; }
+            #seat-grid button { min-height: 34px; font-size: 12px; }
+            #controls-panel { width: min(92vw, 360px); max-height: calc(100dvh - 140px); overflow-y: auto; }
+        }
+        @media (max-width: 380px) {
+            #controls-panel { width: calc(100vw - 16px); right: 8px; padding: 10px; }
+            #seat-grid { gap: 4px; }
+            #seat-grid button { min-height: 32px; }
+        }
+
+        /* Fallback landscape simulation when browser/device orientation lock is unavailable. */
+        body.rotate-landscape-fallback { overflow: hidden !important; }
+        body.rotate-landscape-fallback #app {
+            position: fixed !important; width: 100dvh !important; height: 100vw !important;
+            max-width: none !important; transform: rotate(90deg) translateY(-100%);
+            transform-origin: top left; left: 100vw !important; top: 0 !important;
+        }
+        /* Landscape phone/tablet layout: compact controls, wider playback bar. */
+        @media (orientation: landscape) and (max-height: 600px) {
+            header { padding: 8px !important; }
+            header h1 { font-size: 14px !important; }
+            header .text-xs { font-size: 9px !important; }
+            header .bg-blue-600 { padding: 6px !important; }
+            header .bg-blue-600 i { font-size: 15px !important; }
+            #status-pill { max-width: 30vw; padding: 5px 7px !important; font-size: 9px !important; }
+            #btn-toggle-ui { padding: 6px 8px !important; }
+            #btn-fullscreen, #btn-recenter { padding: 7px !important; }
+            #controls-panel {
+                top: 54px; right: 8px; width: min(300px, 42vw);
+                max-height: calc(100dvh - 112px); padding: 11px; gap: 11px;
+            }
+            #player-bar {
+                left: 8px; transform: none; bottom: 8px;
+                width: min(68vw, 760px); max-width: calc(100vw - 16px);
+                padding: 7px 10px; gap: 5px; border-radius: 14px;
+            }
+            #player-bar .flex.items-center.justify-between { gap: 8px; }
+            #player-bar button { width: 34px; height: 34px; }
+            #player-bar label { padding: 7px 9px; }
+            #player-bar input[type="range"] { max-width: 100px; }
+        }
+        @media (orientation: landscape) and (max-height: 420px) {
+            #controls-panel { top: 48px; max-height: calc(100dvh - 96px); }
+            #player-bar { width: min(64vw, 680px); }
+            #player-bar .text-xs { font-size: 10px; }
+            #player-bar button { width: 30px; height: 30px; }
+        }
+
+        /* Remove duplicated controls marked in the user's screenshot; keep the upload control available. */
+        #btn-recenter, #btn-fullscreen, #btn-play, #btn-mute, #btn-restart, #btn-fit-bottom, #btn-rotate-screen { display: none !important; }
+        /* The reference key row should span the full player width, especially in landscape. */
+        #player-bar { width: min(92vw, 760px); }
+        #player-bar > .flex.items-center.justify-between { justify-content: flex-end; }
+        .reference-player-controls { width: 100%; box-sizing: border-box; }
+        @media (orientation: landscape) {
+          #volume-bar { display: none !important; }
+          #player-bar .flex.items-center.gap-3.px-1 { width: 100%; box-sizing: border-box; }
+          #player-bar #seek-bar { flex: 1 1 auto; min-width: 0; width: 100%; }
+          #time-current, #time-total { flex: 0 0 auto; white-space: nowrap; }
+          header { gap: 8px; }
+          #header-upload-video { padding: 7px 9px !important; font-size: 10px !important; }
+          #player-bar { left: 2vw !important; right: 2vw !important; transform: none !important; width: 96vw !important; max-width: none !important; }
+          .reference-player-controls { justify-content: space-between; gap: 0; padding-left: 3vw; padding-right: 3vw; }
+          .reference-player-controls button { flex: 0 0 auto; }
+        }
+    
+
+/* Extracted from the original HTML; rule order preserved. */
+
+
+      .reference-player-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 1px}
+      .reference-player-controls button{width:42px;height:42px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:#f8fafc;font-size:21px;transition:background .15s,color .15s}
+      .reference-player-controls button:hover{background:rgba(255,255,255,.12)}
+      .reference-player-controls .reference-play{width:58px;height:58px;border:3px solid #f8fafc;font-size:24px;background:rgba(10,15,25,.28)}
+      .reference-player-controls .reference-play:hover{background:rgba(255,255,255,.14)}
+      .reference-player-controls button[aria-pressed="true"]{color:#60a5fa}
+      #player-bar { transition: opacity .22s ease, transform .22s ease; }
+      #player-bar.player-controls-hidden { opacity: 0; pointer-events: none; }
+      @media(max-width:520px){.reference-player-controls{gap:8px}.reference-player-controls button{width:38px;height:38px;font-size:19px}.reference-player-controls .reference-play{width:54px;height:54px;font-size:22px}}
+      /* Make the timeline/time labels span the available screen width on web and mobile. */
+      #player-bar {
+        left: 12px !important;
+        right: 12px !important;
+        width: calc(100vw - 24px) !important;
+        max-width: none !important;
+        box-sizing: border-box !important;
+        transform: none !important;
+      }
+      #player-bar > .flex.items-center.gap-3.px-1 {
+        display: flex !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        gap: 10px !important;
+      }
+      #player-bar #seek-bar {
+        display: block !important;
+        flex: 1 1 0% !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+      }
+      #player-bar #time-current, #player-bar #time-total {
+        flex: 0 0 auto !important;
+        white-space: nowrap !important;
+      }
+    
