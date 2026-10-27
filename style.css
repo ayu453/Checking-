@@ -133,13 +133,13 @@
             #player-bar button { width: 30px; height: 30px; }
         }
 
-        /* Remove duplicated controls marked in the user's screenshot; keep the upload control available. */
-        #btn-recenter, #btn-fullscreen, #btn-play, #btn-mute, #btn-restart, #btn-fit-bottom, #btn-rotate-screen { display: none !important; }
+        /* Hide legacy duplicate playback controls; the fit/orientation controls are removed from the HTML. */
+        #btn-recenter, #btn-fullscreen, #btn-play, #btn-mute, #btn-restart { display: none !important; }
         /* The reference key row should span the full player width, especially in landscape. */
         #player-bar { width: min(92vw, 760px); }
         #player-bar > .flex.items-center.justify-between { justify-content: flex-end; }
         .reference-player-controls { width: 100%; box-sizing: border-box; }
-        @media (orientation: landscape) {
+        @media (orientation: landscape) and (max-height: 600px) {
           #volume-bar { display: none !important; }
           #player-bar .flex.items-center.gap-3.px-1 { width: 100%; box-sizing: border-box; }
           #player-bar #seek-bar { flex: 1 1 auto; min-width: 0; width: 100%; }
@@ -150,9 +150,136 @@
           .reference-player-controls { justify-content: space-between; gap: 0; padding-left: 3vw; padding-right: 3vw; }
           .reference-player-controls button { flex: 0 0 auto; }
         }
-    
 
-/* Extracted from the original HTML; rule order preserved. */
+        /* Quick controls live on the main screen, not inside the settings panel. */
+        #quick-controls { max-width: calc(100vw - 24px); }
+        #quick-controls button { min-height: 40px; white-space: nowrap; touch-action: manipulation; }
+        #quick-controls #seat-picker, #curvature-popover { z-index: 40; }
+        #curvature-popover[hidden] { display: none !important; }
+        #curvature-popover:not([hidden]) { display: flex; }
+        #aspect-ratio-quick-control .btn-aspect { white-space: nowrap; }
+        @media (min-width: 641px) {
+            #quick-controls { left: 24px; bottom: 112px; gap: 10px; align-items: center; flex-wrap: wrap; }
+            #quick-controls button { min-height: 42px; }
+        }
+        .settings-category { display:flex; align-items:center; gap:9px; margin:2px 0 -5px; color:#94a3b8; font-size:9px; font-weight:800; letter-spacing:.14em; }
+        .settings-category-line { height:1px; flex:1; background:rgba(100,116,139,.3); }
+        @media (max-width: 640px) {
+            #quick-controls { left: 10px !important; bottom: 142px !important; gap: 6px !important; }
+            #quick-controls button { min-height: 38px; padding: 8px 10px !important; font-size: 10px !important; }
+            #quick-controls #seat-picker { width: min(280px, calc(100vw - 24px)); }
+            #controls-panel { max-height: calc(100dvh - 110px) !important; padding: 14px !important; }
+        }
+        @media (max-width: 380px) {
+            #quick-controls { bottom: 150px !important; }
+            #quick-controls button { padding: 7px 8px !important; }
+        }
+        body:fullscreen #quick-controls, body.cinema-fullscreen-fallback #quick-controls { bottom: 120px; }
+
+    
+        /* Floating side icon rails for the web cinema view. */
+        .cinema-side-tools { position:fixed; z-index:35; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:9px; pointer-events:auto; }
+        .cinema-side-left { left:16px; }
+        .cinema-side-right { right:16px; }
+        .cinema-icon-tool { position:relative; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(96,165,250,.35); border-radius:14px; color:#dbeafe; background:rgba(8,15,30,.84); backdrop-filter:blur(12px); box-shadow:0 8px 24px rgba(0,0,0,.24); cursor:pointer; touch-action:manipulation; }
+        .cinema-icon-tool:hover,.cinema-icon-tool:focus-visible,.cinema-icon-tool.label-open { color:#fff; border-color:rgba(96,165,250,.85); background:rgba(30,64,175,.78); outline:none; }
+        .cinema-icon-tool .tool-label { position:absolute; top:50%; transform:translateY(-50%); opacity:0; pointer-events:none; white-space:nowrap; padding:7px 10px; border-radius:8px; color:#f8fafc; background:rgba(2,6,23,.96); border:1px solid rgba(100,116,139,.45); font:600 11px/1.2 system-ui,sans-serif; transition:opacity .12s ease; }
+        .cinema-side-left .tool-label { left:calc(100% + 8px); }
+        .cinema-side-right .tool-label { right:calc(100% + 8px); }
+        .cinema-icon-tool:hover .tool-label,.cinema-icon-tool:focus-visible .tool-label,.cinema-icon-tool.label-open .tool-label { opacity:1; }
+        .cinema-side-tools #btn-choose-seat,.cinema-side-tools #btn-glow-toggle { width:44px; height:44px; min-height:44px; padding:0 !important; display:flex; align-items:center; justify-content:center; border-radius:14px; }
+        .cinema-side-tools #btn-choose-seat i,.cinema-side-tools #btn-glow-toggle i { margin:0 !important; }
+        #side-curvature-wrap { position:relative; }
+        #side-curvature-wrap #curvature-popover { z-index:50; min-width:260px; }
+        #side-seat-slot .tool-label,#side-rim-slot .tool-label { position:absolute; top:50%; transform:translateY(-50%); left:auto; right:calc(100% + 8px); opacity:0; pointer-events:none; white-space:nowrap; padding:7px 10px; border-radius:8px; color:#f8fafc; background:rgba(2,6,23,.96); border:1px solid rgba(100,116,139,.45); font:600 11px/1.2 system-ui,sans-serif; }
+        #side-seat-slot button:hover .tool-label,#side-seat-slot button.label-open .tool-label,#side-rim-slot button:hover .tool-label,#side-rim-slot button.label-open .tool-label { opacity:1; }
+        .cinema-side-tools #btn-choose-seat #seat-toggle-text,.cinema-side-tools #btn-glow-toggle #glow-toggle-text { display:none; }
+        #side-seat-slot,#side-rim-slot { position:relative; }
+        #side-seat-slot #seat-picker { bottom:0; left:auto; right:calc(100% + 10px); }
+        .toolbar-restore { position:fixed; z-index:60; top:16px; left:16px; }
+        #btn-restore-toolbar[hidden] { display:none !important; }
+        #quick-controls { display:none !important; }
+        @media (max-width:640px) { .cinema-side-left { left:7px; } .cinema-side-right { right:7px; } .cinema-side-tools { gap:7px; } .cinema-icon-tool,.cinema-side-tools #btn-choose-seat,.cinema-side-tools #btn-glow-toggle { width:38px; height:38px; min-height:38px; border-radius:12px; } }
+        @media (max-height:520px) { .cinema-side-tools { gap:5px; } .cinema-icon-tool,.cinema-side-tools #btn-choose-seat,.cinema-side-tools #btn-glow-toggle { width:36px; height:36px; min-height:36px; } }
+
+
+
+      :root { color-scheme: dark; }
+      html, body { min-height:100%; min-height:100dvh; overscroll-behavior:none; }
+      body { overflow:hidden; }
+      #canvas-container, #canvas-container canvas { width:100%; height:100%; }
+      button, input, select, label { -webkit-tap-highlight-color:transparent; }
+      button, label { touch-action:manipulation; }
+      input[type="range"] { min-height:22px; touch-action:pan-y; }
+      #controls-panel { box-sizing:border-box; }
+      #player-bar { padding-bottom:max(10px, env(safe-area-inset-bottom)); }
+      #cinema-left-tools, #cinema-right-tools { max-height:calc(100dvh - 120px); }
+      #side-seat-slot #seat-picker { max-width:min(280px, calc(100vw - 70px)); }
+      #curvature-popover { max-width:calc(100vw - 80px) !important; }
+      #header-upload-video { white-space:nowrap; }
+      @media (max-width: 700px) {
+        header { padding: max(8px, env(safe-area-inset-top)) 8px 8px !important; gap:6px; align-items:flex-start; }
+        header > div:first-child { gap:7px !important; min-width:0; }
+        header > div:first-child > div:first-child { padding:7px !important; border-radius:10px !important; }
+        header h1 { font-size:clamp(12px, 3.5vw, 16px) !important; line-height:1.15 !important; }
+        header p { font-size:9px !important; line-height:1.2 !important; }
+        header > div:last-child { gap:5px !important; flex-wrap:nowrap; justify-content:flex-end; }
+        #status-pill { max-width:25vw; font-size:9px !important; padding:6px !important; }
+        #btn-toggle-ui { padding:7px !important; min-width:34px; min-height:34px; justify-content:center; }
+        #header-upload-video { padding:7px !important; min-height:34px; font-size:10px !important; }
+        #header-upload-video span { display:none; }
+        #controls-panel {
+          position:fixed !important; top:58px !important; right:8px !important; left:auto !important;
+          width:min(88vw, 370px) !important; max-width:calc(100vw - 16px) !important;
+          max-height:calc(100dvh - 150px - env(safe-area-inset-bottom)) !important;
+          padding:13px !important; gap:13px !important; z-index:55 !important;
+          overflow-y:auto !important; overscroll-behavior:contain;
+        }
+        #player-bar {
+          position:fixed !important; left:8px !important; right:8px !important;
+          bottom:max(8px, env(safe-area-inset-bottom)) !important; width:auto !important;
+          max-width:none !important; padding:8px 10px 7px !important; gap:5px !important;
+          border-radius:16px !important; z-index:30 !important;
+        }
+        #player-bar .reference-player-controls { gap:clamp(4px, 3vw, 14px) !important; padding-top:3px !important; }
+        #player-bar .reference-player-controls button { width:40px; height:40px; font-size:18px; flex:0 1 42px; }
+        #player-bar .reference-player-controls .reference-play { width:48px; height:48px; flex:0 0 48px; }
+        #player-bar #time-current, #player-bar #time-total { font-size:10px !important; min-width:34px !important; }
+        #player-bar > .flex.items-center.gap-3.px-1 { gap:7px !important; }
+        #player-bar > .flex.items-center.justify-between { gap:6px !important; }
+        #cinema-left-tools { left:6px !important; }
+        #cinema-right-tools { right:6px !important; }
+        .cinema-side-tools { gap:6px !important; z-index:25; }
+        .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle {
+          width:36px !important; height:36px !important; min-height:36px !important; border-radius:11px !important;
+        }
+        .cinema-icon-tool .tool-label { font-size:10px; }
+        #btn-restore-toolbar { top:60px; left:8px; }
+        #player-bar .flex.items-center.justify-between.px-1.pt-1 { align-items:center; }
+      }
+      @media (max-width: 390px) {
+        header h1 { max-width:38vw; }
+        header p { max-width:38vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        #status-pill { display:none; }
+        #controls-panel { width:calc(100vw - 16px) !important; right:8px !important; }
+        #player-bar { left:5px !important; right:5px !important; padding-left:7px !important; padding-right:7px !important; }
+        #player-bar .reference-player-controls button { width:35px; height:35px; font-size:17px; }
+        #player-bar .reference-player-controls .reference-play { width:44px; height:44px; flex-basis:44px; }
+      }
+      @media (orientation:landscape) and (max-height:520px) {
+        header { padding:5px 8px !important; }
+        #controls-panel { top:46px !important; max-height:calc(100dvh - 100px) !important; width:min(310px, 43vw) !important; }
+        #player-bar { left:50px !important; right:50px !important; bottom:max(4px, env(safe-area-inset-bottom)) !important; width:auto !important; padding:5px 10px !important; }
+        #player-bar .reference-player-controls { padding-top:0 !important; }
+        #player-bar .reference-player-controls button { width:32px; height:32px; font-size:16px; }
+        #player-bar .reference-player-controls .reference-play { width:38px; height:38px; flex-basis:38px; }
+        .cinema-side-tools { gap:4px !important; }
+        .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle { width:32px !important; height:32px !important; min-height:32px !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition-duration:0.01ms !important; animation-duration:0.01ms !important; }
+      }
+    
 
 
       .reference-player-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 1px}
@@ -163,6 +290,20 @@
       .reference-player-controls button[aria-pressed="true"]{color:#60a5fa}
       #player-bar { transition: opacity .22s ease, transform .22s ease; }
       #player-bar.player-controls-hidden { opacity: 0; pointer-events: none; }
+      body.cinema-ui-hidden > header,
+      body.cinema-ui-hidden #quick-controls,
+      body.cinema-ui-hidden #player-bar,
+      body.cinema-ui-hidden #cinema-left-tools,
+      body.cinema-ui-hidden #cinema-right-tools,
+      body.cinema-ui-hidden #controls-panel,
+      body.cinema-ui-hidden #status-pill,
+      body.cinema-ui-hidden .cinema-side-tools,
+      body.cinema-ui-hidden .cinema-icon-tool {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
       @media(max-width:520px){.reference-player-controls{gap:8px}.reference-player-controls button{width:38px;height:38px;font-size:19px}.reference-player-controls .reference-play{width:54px;height:54px;font-size:22px}}
       /* Make the timeline/time labels span the available screen width on web and mobile. */
       #player-bar {
@@ -190,4 +331,174 @@
         flex: 0 0 auto !important;
         white-space: nowrap !important;
       }
+
+      /* Desktop web layout: use the wide browser viewport without stretching
+         the player across the entire screen or hiding desktop controls. */
+      @media (min-width: 900px) and (min-height: 601px) {
+        header { padding: 20px 24px !important; }
+        header h1 { font-size: 20px !important; }
+        header .text-xs { font-size: 12px !important; }
+        #status-pill { max-width: 280px; font-size: 12px !important; }
+        #controls-panel {
+          top: 92px !important;
+          right: 24px !important;
+          width: clamp(300px, 26vw, 390px) !important;
+          max-height: calc(100vh - 176px) !important;
+          max-height: calc(100dvh - 176px) !important;
+          padding: 20px !important;
+          gap: 20px !important;
+        }
+        #player-bar {
+          left: 50% !important;
+          right: auto !important;
+          bottom: 20px !important;
+          transform: translateX(-50%) !important;
+          width: min(72vw, 940px) !important;
+          max-width: 940px !important;
+          padding: 14px 18px !important;
+        }
+        #player-bar .reference-player-controls { justify-content: space-evenly; gap: 18px; }
+        #player-bar .reference-player-controls button { width: 44px; height: 44px; }
+        #player-bar .reference-player-controls .reference-play { width: 60px; height: 60px; }
+        #quick-controls { left: 24px !important; bottom: 176px !important; gap: 10px !important; }
+        #quick-controls button { min-height: 42px; padding: 11px 14px !important; font-size: 12px !important; }
+      }
+      /* Short landscape browser windows retain compact cinema controls. */
+      @media (min-width: 900px) and (max-height: 600px) {
+        #controls-panel { width: min(320px, 30vw) !important; max-height: calc(100dvh - 112px) !important; }
+        #player-bar { left: 12px !important; right: 12px !important; width: calc(100vw - 24px) !important; bottom: 8px !important; }
+        #quick-controls { left: 16px !important; bottom: 126px !important; }
+      }
     
+
+/* FULL MOBILE RESPONSIVE PASS: layout only; preserves existing features and controls. */
+:root { color-scheme: dark; }
+html, body {
+  width: 100%; min-width: 0; max-width: 100%; height: 100%; min-height: 100%;
+  margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+}
+body { position: fixed; inset: 0; touch-action: pan-x pan-y; }
+#canvas-container { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden; }
+#canvas-container canvas { display: block; width: 100% !important; height: 100% !important; touch-action: pan-x pan-y; }
+*, *::before, *::after { box-sizing: border-box; }
+button, input, select, textarea, label { max-width: 100%; }
+button, label, input[type="range"] { touch-action: manipulation; }
+header { max-width: 100vw; min-width: 0; gap: clamp(4px, 1.5vw, 12px); padding-top: max(8px, env(safe-area-inset-top)) !important; padding-left: max(8px, env(safe-area-inset-left)) !important; padding-right: max(8px, env(safe-area-inset-right)) !important; }
+header > div { min-width: 0; }
+#status-pill { min-width: 0; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
+#controls-panel { box-sizing: border-box !important; min-width: 0 !important; max-width: calc(100vw - 16px) !important; max-height: calc(100dvh - 96px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important; overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#controls-panel > *, #controls-panel label, #controls-panel button, #controls-panel input, #controls-panel select { min-width: 0; }
+#player-bar { box-sizing: border-box !important; left: 50% !important; right: auto !important; width: min(760px, calc(100vw - 16px)) !important; max-width: calc(100vw - 16px) !important; transform: translateX(-50%) !important; bottom: max(8px, env(safe-area-inset-bottom)) !important; padding: clamp(7px, 1.8vw, 12px) !important; gap: clamp(4px, 1.2vw, 10px) !important; min-width: 0 !important; }
+#player-bar > *, #player-bar .flex, #player-bar .flex > * { min-width: 0; }
+#player-bar .flex.items-center.gap-3.px-1 { gap: clamp(5px, 1.5vw, 12px) !important; }
+#seek-bar { min-width: 0 !important; width: 100%; flex: 1 1 auto; }
+#time-current, #time-total { flex: 0 0 auto; min-width: 34px !important; white-space: nowrap; font-size: clamp(9px, 2.5vw, 12px) !important; }
+#player-bar .flex.items-center.justify-between { flex-wrap: wrap; gap: 6px; }
+#player-bar button, #vlc-key-panel button { flex: 0 0 auto; }
+#vlc-key-panel { display: flex !important; width: 100%; max-width: 100%; min-width: 0; justify-content: space-around !important; gap: clamp(4px, 2vw, 12px) !important; flex-wrap: nowrap; }
+#vlc-key-panel button { min-width: 0; min-height: 36px; width: clamp(34px, 9vw, 44px); height: clamp(34px, 9vw, 44px); }
+#quick-controls { max-width: calc(100vw - 16px) !important; min-width: 0; flex-wrap: wrap; }
+#seat-picker { max-width: calc(100vw - 24px) !important; }
+#seat-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+#seat-grid button { min-width: 0 !important; min-height: 36px; }
+.cinema-side-tools { max-width: calc(100vw - 8px); }
+.cinema-side-left { left: max(5px, env(safe-area-inset-left)) !important; }
+.cinema-side-right { right: max(5px, env(safe-area-inset-right)) !important; }
+.cinema-icon-tool { flex: 0 0 auto; }
+.custom-scrollbar { scrollbar-width: thin; }
+@media (max-width: 640px) {
+  header { align-items: flex-start !important; }
+  header > div:first-child { gap: 7px !important; }
+  header h1 { font-size: clamp(12px, 3.5vw, 17px) !important; line-height: 1.15 !important; }
+  header p { font-size: clamp(8px, 2.3vw, 10px) !important; line-height: 1.2 !important; }
+  header .bg-blue-600 { padding: 7px !important; }
+  header .bg-blue-600 i { font-size: 15px !important; }
+  header > div:last-child { gap: 5px !important; flex-wrap: nowrap; justify-content: flex-end; }
+  #header-upload-video { max-width: 33vw; padding: 8px !important; font-size: 10px !important; white-space: nowrap; }
+  #status-pill { display: none; }
+  #btn-toggle-ui { padding: 8px !important; }
+  #controls-panel { top: calc(58px + env(safe-area-inset-top)) !important; right: 8px !important; width: min(360px, calc(100vw - 16px)) !important; padding: 12px !important; gap: 12px !important; }
+  #player-bar { width: calc(100vw - 12px) !important; max-width: calc(100vw - 12px) !important; bottom: max(6px, env(safe-area-inset-bottom)) !important; border-radius: 14px !important; }
+  #player-bar .flex.items-center.gap-2 { gap: 5px !important; }
+  #player-bar .flex.items-center.gap-2 > button { width: 34px !important; height: 34px !important; }
+  #player-bar .flex.items-center.justify-between > .flex.items-center.gap-2 { flex: 0 1 auto; }
+  #player-bar .flex.items-center.justify-between > .flex.items-center.gap-2:last-child { margin-left: auto; }
+  #volume-bar { display: none !important; }
+  #vlc-key-panel { padding-top: 4px !important; }
+  #quick-controls { left: 8px !important; bottom: calc(142px + env(safe-area-inset-bottom)) !important; gap: 5px !important; }
+  #quick-controls button { min-height: 36px !important; padding: 7px 9px !important; font-size: 10px !important; }
+  .cinema-side-tools { gap: 6px !important; }
+  .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle { width: 36px !important; height: 36px !important; min-height: 36px !important; border-radius: 10px !important; }
+}
+@media (max-width: 390px) {
+  header { padding-left: 6px !important; padding-right: 6px !important; }
+  header h1 { font-size: 12px !important; }
+  header p { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #header-upload-video { max-width: 30px; width: 30px; justify-content: center; overflow: hidden; gap: 0 !important; }
+  #header-upload-video span { display: none !important; }
+  #player-bar { padding: 6px !important; }
+  #player-bar .flex.items-center.justify-between { gap: 4px !important; }
+  #player-bar .flex.items-center.gap-2 > button { width: 31px !important; height: 31px !important; }
+  #vlc-key-panel button { width: 32px; height: 32px; min-height: 32px; }
+  #time-current, #time-total { min-width: 30px !important; font-size: 9px !important; }
+  #quick-controls { bottom: calc(136px + env(safe-area-inset-bottom)) !important; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  header { padding-top: max(4px, env(safe-area-inset-top)) !important; }
+  header h1 { font-size: 13px !important; }
+  header p { display: none; }
+  #controls-panel { top: 48px !important; right: 8px !important; width: min(300px, 42vw) !important; max-height: calc(100dvh - 58px - env(safe-area-inset-bottom)) !important; padding: 9px !important; }
+  #player-bar { left: 50% !important; right: auto !important; width: min(700px, calc(100vw - 12px)) !important; max-width: calc(100vw - 12px) !important; bottom: max(4px, env(safe-area-inset-bottom)) !important; padding: 5px 8px !important; gap: 3px !important; }
+  #player-bar .flex.items-center.justify-between { flex-wrap: nowrap; }
+  #player-bar .flex.items-center.gap-2 > button { width: 30px !important; height: 30px !important; }
+  #vlc-key-panel { padding-top: 2px !important; }
+  #vlc-key-panel button { width: 30px; height: 30px; min-height: 30px; }
+  #quick-controls { bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
+  .cinema-side-tools { gap: 4px !important; }
+  .cinema-icon-tool, .cinema-side-tools #btn-choose-seat, .cinema-side-tools #btn-glow-toggle { width: 32px !important; height: 32px !important; min-height: 32px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+
+
+
+/* The lower three-dot menu is the single entry point for the full settings panel. */
+#btn-toggle-ui, #btn-restore-toolbar, #btn-hide-toolbar { display:none !important; }
+#controls-panel.menu-open-from-player {
+  position:fixed !important; top:auto !important; right:14px !important;
+  bottom:100px !important; left:auto !important; z-index:100 !important;
+  width:min(360px, calc(100vw - 24px)) !important;
+  max-height:min(72dvh, 680px) !important; overflow-y:auto !important;
+  transform:none !important; display:flex !important; visibility:visible !important;
+}
+#controls-panel.menu-closed-from-player { display:none !important; }
+#cinema-left-tools, #cinema-right-tools, #quick-controls, #player-bar {
+  transition:opacity .22s ease, visibility .22s ease !important;
+}
+body.screen-controls-idle #cinema-left-tools,
+body.screen-controls-idle #cinema-right-tools,
+body.screen-controls-idle #quick-controls,
+body.screen-controls-idle #player-bar {
+  opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
+}
+body.screen-controls-idle #seat-picker { visibility:hidden !important; }
+@media(max-width:640px) {
+ #controls-panel.menu-open-from-player { right:8px !important; bottom:88px !important; width:calc(100vw - 16px) !important; max-height:72dvh !important; }
+}
+
+      body.cinema-ui-hidden > header,
+      body.cinema-ui-hidden #quick-controls,
+      body.cinema-ui-hidden #player-bar,
+      body.cinema-ui-hidden #cinema-left-tools,
+      body.cinema-ui-hidden #cinema-right-tools,
+      body.cinema-ui-hidden #controls-panel,
+      body.cinema-ui-hidden #status-pill,
+      body.cinema-ui-hidden .cinema-side-tools,
+      body.cinema-ui-hidden .cinema-icon-tool {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
