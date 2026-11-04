@@ -2709,24 +2709,44 @@ body.screen-controls-idle #seat-picker { visibility:hidden !important; }
 #ytCinemaPanel{display:none;position:fixed;inset:5vh 4vw;z-index:10030;background:#08090c;border:1px solid #571326;border-radius:14px;box-shadow:0 0 35px #000;overflow:hidden}
 #ytCinemaPanel.open{display:flex;flex-direction:column}
 #ytCinemaPanel header{display:flex;gap:10px;align-items:center;padding:10px;background:#160b10;color:#fff;font:14px system-ui}
-#ytCinemaSearch{flex:1;min-width:0;background:#090a0d;border:1px solid #663044;border-radius:8px;padding:10px;color:white}
-#ytCinemaGo,#ytCinemaClose{background:#741126;color:white;border:0;border-radius:8px;padding:10px 13px;font-weight:600}
+#ytCinemaUrl{flex:1;min-width:0;background:#090a0d;border:1px solid #663044;border-radius:8px;padding:10px;color:white}
+#ytCinemaGo,#ytCinemaClose{background:#741126;color:white;border:0;border-radius:8px;padding:10px 13px;font-weight:600;cursor:pointer}
 #ytCinemaFrame{border:0;width:100%;height:100%;flex:1;background:#000}
-@media(max-width:600px){#ytCinemaPanel{inset:2vh 2vw}#ytCinemaLauncher{right:12px;bottom:78px}}
+#ytCinemaError{display:none;color:#ffb6c2;font:12px system-ui;padding:0 12px 10px;background:#160b10}
+@media(max-width:600px){#ytCinemaPanel{inset:2vh 2vw}#ytCinemaPanel header{flex-wrap:wrap}#ytCinemaUrl{flex-basis:100%;order:2}#ytCinemaLauncher{right:12px;bottom:78px}}
 </style>
-<button id="ytCinemaLauncher" type="button" aria-label="Open YouTube Cinema">▶ YouTube</button>
-<section id="ytCinemaPanel" aria-label="YouTube Cinema">
-<header><strong>YouTube Cinema</strong><input id="ytCinemaSearch" type="search" placeholder="Search YouTube videos…" autocomplete="off"><button id="ytCinemaGo" type="button">Search</button><button id="ytCinemaClose" type="button">Close</button></header>
+<button id="ytCinemaLauncher" type="button" aria-label="Open YouTube Link Player">▶ YouTube Link</button>
+<section id="ytCinemaPanel" aria-label="YouTube Link Player">
+<header><strong>YouTube Cinema</strong><input id="ytCinemaUrl" type="url" placeholder="Paste YouTube video link here…" autocomplete="off"><button id="ytCinemaGo" type="button">Play</button><button id="ytCinemaClose" type="button">Close</button></header>
+<div id="ytCinemaError" role="status"></div>
 <iframe id="ytCinemaFrame" title="YouTube player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
 </section>
 <script>
 (()=>{
- const launch=document.getElementById('ytCinemaLauncher'),panel=document.getElementById('ytCinemaPanel'),input=document.getElementById('ytCinemaSearch'),frame=document.getElementById('ytCinemaFrame');
+ const launch=document.getElementById('ytCinemaLauncher'),panel=document.getElementById('ytCinemaPanel'),input=document.getElementById('ytCinemaUrl'),frame=document.getElementById('ytCinemaFrame'),error=document.getElementById('ytCinemaError');
  if(!launch||!panel||!input||!frame)return;
- function search(){const q=input.value.trim();if(!q)return;frame.src='https://www.youtube.com/embed?listType=search&list='+encodeURIComponent(q)+'&autoplay=0';}
+ function getVideoId(raw){
+   try{
+     const u=new URL(raw.trim());
+     const host=u.hostname.replace(/^www\\./,'').toLowerCase();
+     let id='';
+     if(host==='youtu.be') id=u.pathname.split('/').filter(Boolean)[0]||'';
+     else if(host==='youtube.com'||host==='m.youtube.com'||host==='music.youtube.com'){
+       if(u.pathname==='/watch') id=u.searchParams.get('v')||'';
+       else if(/^\\/(embed|shorts|live)\\//.test(u.pathname)) id=u.pathname.split('/')[2]||'';
+     }
+     return /^[A-Za-z0-9_-]{11}$/.test(id)?id:'';
+   }catch(_){return '';}
+ }
+ function play(){
+   const id=getVideoId(input.value);
+   if(!id){error.textContent='Valid YouTube video URL paste karo (watch, youtu.be, Shorts ya live link).';error.style.display='block';return;}
+   error.style.display='none';
+   frame.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0';
+ }
  launch.addEventListener('click',()=>{panel.classList.add('open');input.focus();});
- document.getElementById('ytCinemaGo').addEventListener('click',search);
- input.addEventListener('keydown',e=>{if(e.key==='Enter')search();});
+ document.getElementById('ytCinemaGo').addEventListener('click',play);
+ input.addEventListener('keydown',e=>{if(e.key==='Enter')play();});
  document.getElementById('ytCinemaClose').addEventListener('click',()=>{panel.classList.remove('open');frame.src='about:blank';});
 })();
 </script>
