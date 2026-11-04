@@ -2,7 +2,7 @@
   "name": "imax-3d-simulator-android",
   "version": "1.0.0",
   "private": true,
-  "description": "Android packaging and validation for the IMAX 3D Simulator web app",
+  "description": "Interactive browser-based 3D IMAX and ScreenX virtual cinema simulator, with Capacitor Android packaging.",
   "scripts": {
     "test": "node scripts/smoke-test.mjs"
   },
