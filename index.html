@@ -903,36 +903,32 @@ header > div { min-width: 0; }
 
         // --- 2. Theater Room Geometry & Lighting ---
         function initTheaterEnvironment() {
-            // Luxury auditorium fitted around the unchanged IMAX / ScreenX geometry.
-            ambientLight = new THREE.AmbientLight(0xb9bec6, 1.05);
+            // Complete premium IMAX auditorium shell: oxblood, charcoal, brushed metal and low red light.
+            // The existing IMAX/ScreenX screen and the 3 x 5 seat layout are intentionally untouched.
+            ambientLight = new THREE.AmbientLight(0x9b8790, 0.72);
             scene.add(ambientLight);
 
-            spotLight = new THREE.PointLight(0x91a0b7, 0.72, 32, 1.8);
-            spotLight.position.set(0, 5, 2);
+            spotLight = new THREE.PointLight(0xb52b4a, 0.48, 38, 1.7);
+            spotLight.position.set(0, 5, 3);
             scene.add(spotLight);
 
-            overheadLight = new THREE.DirectionalLight(0xd4c9b8, 0.78);
+            overheadLight = new THREE.DirectionalLight(0xd7c2c6, 0.38);
             overheadLight.position.set(0, 22, 10);
             scene.add(overheadLight);
 
-            wallMaterial = new THREE.MeshStandardMaterial({
-                color: 0x1b1015, roughness: 0.94, metalness: 0.025
-            });
-            floorMaterial = new THREE.MeshStandardMaterial({
-                color: 0x111114, roughness: 1.0, metalness: 0.0
-            });
+            wallMaterial = new THREE.MeshStandardMaterial({ color: 0x160f14, roughness: 0.92, metalness: 0.08 });
+            floorMaterial = new THREE.MeshStandardMaterial({ color: 0x0c0c10, roughness: 0.96, metalness: 0.02 });
 
-            // Keep enough width for the existing ScreenX panels at their widest setting.
-            // The original screen and ScreenX geometry are deliberately not edited.
-            const roomWidth = 52;
-            const roomHeight = 20;
-            const roomDepth = 62;
-            // Extend floor and ceiling behind the bowed back wall so they meet it without a gap.
-            const roomCenterZ = 23.0;
+            const roomWidth = 52, roomHeight = 20, roomDepth = 62, roomCenterZ = 23.0;
+            const wallDark = new THREE.MeshStandardMaterial({ color: 0x21151c, roughness: 0.88, metalness: 0.12, side: THREE.DoubleSide });
+            const wallInset = new THREE.MeshStandardMaterial({ color: 0x100e13, roughness: 0.94, metalness: 0.04 });
+            const burgundy = new THREE.MeshStandardMaterial({ color: 0x4b1425, roughness: 0.62, metalness: 0.16 });
+            const metal = new THREE.MeshStandardMaterial({ color: 0x555057, roughness: 0.38, metalness: 0.72 });
+            const redGlow = new THREE.MeshBasicMaterial({ color: 0xff244f, toneMapped: false });
+            const softRed = new THREE.MeshBasicMaterial({ color: 0xa91d3b, toneMapped: false });
+            const black = new THREE.MeshStandardMaterial({ color: 0x090a0e, roughness: 0.86, metalness: 0.12 });
 
-            // One continuous floor-to-ceiling curved BACK wall, kept behind the screen frame.
-            // Side-wall junctions move forward by half the 5.85-unit gap (2.925 units).
-            // The center of the back wall bows away from the seating area, behind the frame.
+            // Curved front wall remains behind the screen frame; keep its existing curve driver.
             const backWallJunctionZ = -3.075;
             backWallGeometry = new THREE.PlaneGeometry(roomWidth, roomHeight, 80, 1);
             backWallGeometry.computeVertexNormals();
@@ -943,110 +939,144 @@ header > div { min-width: 0; }
             scene.add(backWallMesh);
             updateBackWallCurvature();
 
+            // Deep charcoal carpet floor with a subtle central runner and aisle guide strips.
             const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth),
-                new THREE.MeshStandardMaterial({ color: 0x141216, roughness: 1.0, metalness: 0.0 }));
+                new THREE.MeshStandardMaterial({ color: 0x111015, roughness: 1, metalness: 0 }));
             floor.rotation.x = -Math.PI / 2;
             floor.position.set(0, -5, roomCenterZ);
             floor.receiveShadow = true;
             scene.add(floor);
-
-            // Side walls begin at the curved back wall's endpoints. The front part of
-            // each side wall is cut back by 2.925 units; the first window begins at z=-0.15.
-            // The screen/frame at z=-6 remains inside the room, in front of the bowed wall center.
-            const frameBackZ = -3.075;
-            const sideWallFrontZ = frameBackZ;
-            const sideEndZ = 26.0;
-            const sideWallLength = sideEndZ - sideWallFrontZ;
-            const sideWallCenterZ = (sideEndZ + sideWallFrontZ) / 2;
-            const sideWallMat = wallMaterial.clone();
-            sideWallMat.side = THREE.DoubleSide;
-            const sideWallGeo = new THREE.PlaneGeometry(sideWallLength, roomHeight);
-            for (const side of [-1, 1]) {
-                const sideWall = new THREE.Mesh(sideWallGeo, sideWallMat);
-                sideWall.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-                sideWall.position.set(side * roomWidth / 2, roomHeight / 2 - 5, sideWallCenterZ);
-                scene.add(sideWall);
+            const runner = new THREE.Mesh(new THREE.PlaneGeometry(13.8, 56),
+                new THREE.MeshStandardMaterial({ color: 0x241019, roughness: 1, metalness: 0 }));
+            runner.rotation.x = -Math.PI / 2;
+            runner.position.set(0, -4.985, 23);
+            scene.add(runner);
+            for (const x of [-7.15, 7.15]) {
+                const line = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.025, 48), softRed);
+                line.position.set(x, -4.94, 23);
+                scene.add(line);
             }
 
-            // Close the auditorium at the REAR, behind the seating rows.
-            // The curved wall near z=-3.075 is the screen/front wall; this is the opposite wall.
-            const rearWallMat = wallMaterial.clone();
-            rearWallMat.side = THREE.DoubleSide;
-            const rearWall = new THREE.Mesh(
-                new THREE.PlaneGeometry(roomWidth, roomHeight),
-                rearWallMat
-            );
-            rearWall.position.set(0, roomHeight / 2 - 5, sideEndZ);
-            scene.add(rearWall);
-
-            const acousticMat = new THREE.MeshStandardMaterial({ color: 0x29171d, roughness: 0.97, metalness: 0.015 });
-            const insetMat = new THREE.MeshStandardMaterial({ color: 0x101014, roughness: 0.94, metalness: 0.02 });
-            const trimMat = new THREE.MeshStandardMaterial({ color: 0x54202d, roughness: 0.48, metalness: 0.38 });
-            const accentMat = new THREE.MeshBasicMaterial({ color: 0x9f2943, toneMapped: false });
-            const guidanceMat = new THREE.MeshBasicMaterial({ color: 0xff405d, toneMapped: false });
-            const speakerMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.66, metalness: 0.1 });
-            const speakerConeMat = new THREE.MeshStandardMaterial({ color: 0x292b2e, roughness: 0.8, metalness: 0.04 });
-
-            // Side-wall panels are set back from the room boundary to keep ScreenX surfaces clear.
+            // Full-height side walls with repeated inset acoustic bays, metal reveals and red sconces.
+            const sideFrontZ = -3.075, sideEndZ = 26.0;
+            const sideLength = sideEndZ - sideFrontZ;
+            const sideCenterZ = (sideEndZ + sideFrontZ) / 2;
             for (const side of [-1, 1]) {
-                for (let i = 0; i < 9; i++) {
-                    const z = 1.5 + i * 5.5;
-                    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.13, 10.5, 3.3), acousticMat);
-                    panel.position.set(side * 25.45, 6.2, z);
-                    scene.add(panel);
+                const wall = new THREE.Mesh(new THREE.PlaneGeometry(sideLength, roomHeight), wallDark);
+                wall.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+                wall.position.set(side * 26, 5, sideCenterZ);
+                scene.add(wall);
 
-                    const inset = new THREE.Mesh(new THREE.BoxGeometry(0.035, 8.4, 2.55), insetMat);
-                    inset.position.set(side * 25.36, 6.2, z);
+                // Lower continuous burgundy dado and upper dark acoustic field.
+                const dado = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.0, sideLength), burgundy);
+                dado.position.set(side * 25.82, -3.9, sideCenterZ);
+                scene.add(dado);
+                const capRail = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, sideLength), metal);
+                capRail.position.set(side * 25.78, -2.82, sideCenterZ);
+                scene.add(capRail);
+
+                for (let i = 0; i < 8; i++) {
+                    const z = -0.8 + i * 3.35;
+                    const bay = new THREE.Mesh(new THREE.BoxGeometry(0.22, 11.6, 2.55), wallDark);
+                    bay.position.set(side * 25.76, 6.6, z);
+                    scene.add(bay);
+                    const inset = new THREE.Mesh(new THREE.BoxGeometry(0.055, 9.5, 2.12), wallInset);
+                    inset.position.set(side * 25.61, 6.55, z);
                     scene.add(inset);
-
-                    const verticalAccent = new THREE.Mesh(new THREE.BoxGeometry(0.035, 7.6, 0.045), accentMat);
-                    verticalAccent.position.set(side * 25.30, 6.2, z - 1.30);
-                    scene.add(verticalAccent);
+                    const innerPanel = new THREE.Mesh(new THREE.BoxGeometry(0.035, 7.8, 1.58), burgundy);
+                    innerPanel.position.set(side * 25.57, 6.55, z);
+                    scene.add(innerPanel);
+                    for (const dz of [-1.18, 1.18]) {
+                        const stile = new THREE.Mesh(new THREE.BoxGeometry(0.06, 10.0, 0.07), metal);
+                        stile.position.set(side * 25.52, 6.55, z + dz);
+                        scene.add(stile);
+                    }
+                    const sconce = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.0, 0.22), redGlow);
+                    sconce.position.set(side * 25.48, 10.2, z);
+                    scene.add(sconce);
+                    const sconceLight = new THREE.PointLight(0xff244f, 0.32, 5, 2);
+                    sconceLight.position.set(side * 24.9, 10.0, z);
+                    scene.add(sconceLight);
                 }
 
-                // Compact flush surround speakers sit behind/within panel zones, away from screen projection.
-                for (const z of [5.5, 16.5, 27.5, 38.5, 49.5]) {
-                    const speaker = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.25, 0.82), speakerMat);
-                    speaker.position.set(side * 25.30, 3.7, z);
+                // Flush surround speakers, kept within the wall plane and outside the screen wings.
+                for (const z of [2.5, 9.5, 16.5, 23.5]) {
+                    const speaker = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.15, 0.82), black);
+                    speaker.position.set(side * 25.35, 3.2, z);
                     scene.add(speaker);
-                    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.04, 14), speakerConeMat);
-                    cone.rotation.z = Math.PI / 2;
-                    cone.position.set(side * 25.18, 3.7, z);
-                    scene.add(cone);
+                    const grille = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.72, 0.54), metal);
+                    grille.position.set(side * 25.24, 3.2, z);
+                    scene.add(grille);
                 }
-
-                const lowGuidance = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.045, 48), guidanceMat);
-                lowGuidance.position.set(side * 24.95, -4.86, 25);
-                scene.add(lowGuidance);
+                const lowGuide = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.055, 48), redGlow);
+                lowGuide.position.set(side * 24.94, -4.82, 21);
+                scene.add(lowGuide);
             }
 
-            // Extra surround geometry outside the rectangular screen frame removed.
+            // Rear wall feature: broad framed acoustic panels and a centered illuminated crest.
+            const rearWall = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomHeight), wallDark);
+            rearWall.position.set(0, 5, 26);
+            scene.add(rearWall);
+            for (let i = 0; i < 7; i++) {
+                const x = -21 + i * 7;
+                const panel = new THREE.Mesh(new THREE.BoxGeometry(5.6, 12.5, 0.28), wallInset);
+                panel.position.set(x, 6.4, 25.72);
+                scene.add(panel);
+                const trim = new THREE.Mesh(new THREE.BoxGeometry(5.25, 0.09, 0.12), metal);
+                trim.position.set(x, 12.55, 25.52);
+                scene.add(trim);
+            }
+            const rearSign = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.34, 0.18), redGlow);
+            rearSign.position.set(0, 13.4, 25.48);
+            scene.add(rearSign);
 
-            // Ceiling: restrained dark acoustic slats and low-glare recessed fixture details.
-            const ceilingMat = new THREE.MeshStandardMaterial({
-                color: 0x111214, roughness: 0.96, metalness: 0.02, side: THREE.DoubleSide
-            });
-            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth), ceilingMat);
+            // Sculpted ceiling: dark coffered panels, longitudinal ribs and continuous red cove lines.
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth),
+                new THREE.MeshStandardMaterial({ color: 0x090a0e, roughness: 0.95, metalness: 0.06, side: THREE.DoubleSide }));
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.set(0, 15, roomCenterZ);
             scene.add(ceiling);
-
-            const ceilingRibMat = new THREE.MeshStandardMaterial({ color: 0x252629, roughness: 0.88, metalness: 0.06 });
-            for (let z = -1; z < 53; z += 5.5) {
-                const slat = new THREE.Mesh(new THREE.BoxGeometry(46, 0.14, 0.22), ceilingRibMat);
-                slat.position.set(0, 14.82, z);
-                scene.add(slat);
+            const ceilingField = new THREE.MeshStandardMaterial({ color: 0x17141a, roughness: 0.78, metalness: 0.18 });
+            const ceilingRecess = new THREE.MeshStandardMaterial({ color: 0x07080b, roughness: 0.92, metalness: 0.08 });
+            for (let z = -0.5; z <= 24; z += 5.0) {
+                const coffer = new THREE.Mesh(new THREE.BoxGeometry(43.5, 0.22, 3.9), ceilingField);
+                coffer.position.set(0, 14.82, z);
+                scene.add(coffer);
+                const recess = new THREE.Mesh(new THREE.BoxGeometry(39.5, 0.08, 2.85), ceilingRecess);
+                recess.position.set(0, 14.68, z);
+                scene.add(recess);
+                for (const x of [-20.9, 20.9]) {
+                    const border = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.045, 3.45), redGlow);
+                    border.position.set(x, 14.62, z);
+                    scene.add(border);
+                }
             }
-            const downlightMat = new THREE.MeshBasicMaterial({ color: 0x81725f, toneMapped: false });
-            for (const x of [-14, 0, 14]) {
-                for (const z of [3, 17, 31, 45]) {
-                    const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.045, 12), downlightMat);
-                    fixture.position.set(x, 14.72, z);
+            for (const x of [-22.2, -15, 0, 15, 22.2]) {
+                const rib = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.34, 31), metal);
+                rib.position.set(x, 14.68, 11.5);
+                scene.add(rib);
+            }
+            for (const x of [-24.1, 24.1]) {
+                const cove = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 30), redGlow);
+                cove.position.set(x, 14.48, 11.5);
+                scene.add(cove);
+            }
+
+            // Recessed ceiling downlights: warm dim pools, not a bright flat office ceiling.
+            const fixtureMat = new THREE.MeshBasicMaterial({ color: 0xc58b9a, toneMapped: false });
+            for (const x of [-17, -8.5, 8.5, 17]) {
+                for (const z of [1.5, 11.5, 21.5]) {
+                    const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.055, 16), fixtureMat);
+                    fixture.position.set(x, 14.52, z);
                     scene.add(fixture);
+                    const light = new THREE.PointLight(0x9e5267, 0.12, 5, 2);
+                    light.position.set(x, 13.8, z);
+                    scene.add(light);
                 }
             }
 
-            const aisleGlowMat = new THREE.MeshBasicMaterial({ color: 0xffb16b, toneMapped: false });
+            // Existing side stair / concession details are retained; their cabinets sit inside the room.
+            const aisleGlowMat = new THREE.MeshBasicMaterial({ color: 0xff294f, toneMapped: false });
             for (const side of [-1, 1]) {
                 for (let r = 0; r < 3; r++) {
                     const marker = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 1.25), aisleGlowMat);
@@ -1055,13 +1085,10 @@ header > div { min-width: 0; }
                     aisleLights.push(marker);
                 }
             }
-
-            wallGlowLeft = new THREE.PointLight(0x9b8b78, 0.28, 18, 2);
-            wallGlowRight = new THREE.PointLight(0x9b8b78, 0.28, 18, 2);
-            // Pull both glow lights inward from the side walls and lower them to floor level,
-            // behind the seating area rather than high up on the side walls.
-            wallGlowLeft.position.set(-9, -4.25, 49);
-            wallGlowRight.position.set(9, -4.25, 49);
+            wallGlowLeft = new THREE.PointLight(0x9b2946, 0.22, 18, 2);
+            wallGlowRight = new THREE.PointLight(0x9b2946, 0.22, 18, 2);
+            wallGlowLeft.position.set(-9, -4.25, 24);
+            wallGlowRight.position.set(9, -4.25, 24);
             scene.add(wallGlowLeft, wallGlowRight);
 
             createTheaterSeats();
@@ -1097,7 +1124,7 @@ header > div { min-width: 0; }
                 }
                 // A softly lit snack/drink vending cabinet on each side wall, behind the seats.
                 const x = side * 23.45;
-                const z = 34.5;
+                const z = 21.5;
                 const cabinet = new THREE.Mesh(new THREE.BoxGeometry(2.05, 4.1, 1.35), machineBody);
                 cabinet.position.set(x, -2.85, z);
                 scene.add(cabinet);
