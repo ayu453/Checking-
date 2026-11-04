@@ -792,6 +792,7 @@ header > div { min-width: 0; }
         let rgbStripLights = []; // Decorative ceiling RGB strips, switched off during movie playback.
         let screenBacklightMesh = null, screenBacklightGlowLight = null;
         let frontCarpetMesh = null, carpetEdgeMeshes = [];
+        let floorRunnerMesh = null, floorGuideMeshes = [];
         let theaterRoom, wallMaterial, floorMaterial;
         let preFitCamera = null;
 
@@ -967,11 +968,11 @@ header > div { min-width: 0; }
             floor.position.set(0, -5, roomCenterZ);
             floor.receiveShadow = true;
             scene.add(floor);
-            const runner = new THREE.Mesh(new THREE.PlaneGeometry(13.8, 56),
+            floorRunnerMesh = new THREE.Mesh(new THREE.PlaneGeometry(13.8, 56),
                 new THREE.MeshStandardMaterial({ color: 0x241019, roughness: 1, metalness: 0 }));
-            runner.rotation.x = -Math.PI / 2;
-            runner.position.set(0, -4.985, 23);
-            scene.add(runner);
+            floorRunnerMesh.rotation.x = -Math.PI / 2;
+            floorRunnerMesh.position.set(0, -4.985, 23);
+            scene.add(floorRunnerMesh);
 
             // Rich crimson carpet runner from the front seating row toward the screen.
             frontCarpetMesh = new THREE.Mesh(
@@ -991,9 +992,11 @@ header > div { min-width: 0; }
                 scene.add(carpetEdge);
             }
 
+            floorGuideMeshes = [];
             for (const x of [-7.15, 7.15]) {
-                const line = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.025, 48), softRed);
+                const line = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.025, 48), softRed.clone());
                 line.position.set(x, -4.94, 23);
+                floorGuideMeshes.push(line);
                 scene.add(line);
             }
 
@@ -1101,7 +1104,13 @@ header > div { min-width: 0; }
                 const recess = new THREE.Mesh(new THREE.BoxGeometry(39.5, 0.08, 2.9), ceilingRecess);
                 recess.position.set(0, 14.66, z);
                 scene.add(recess);
-                // Removed the upper red LED strip; keep the dark ceiling coffers only.
+                // Upper red LED strips: remain visible before playback, switch off during playback.
+                for (const x of [-20.9, 20.9]) {
+                    const upperStrip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 3.55), redGlow);
+                    upperStrip.position.set(x, 14.59, z);
+                    rgbStripLights.push(upperStrip);
+                    scene.add(upperStrip);
+                }
             }
             // Central galaxy panel: subtle blue-black night-sky finish with tiny fixed star lights.
             const galaxyPanel = new THREE.Mesh(new THREE.BoxGeometry(23.5, 0.10, 28.5), ceilingRecess);
@@ -1126,6 +1135,7 @@ header > div { min-width: 0; }
             for (const x of [-24.1, 24.1]) {
                 const cove = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 31), redGlow);
                 cove.position.set(x, 14.43, 11.5);
+                rgbStripLights.push(cove);
                 scene.add(cove);
             }
             for (const z of [-3.2, 26.8]) {
@@ -1566,6 +1576,8 @@ header > div { min-width: 0; }
             if (screenBacklightGlowLight) screenBacklightGlowLight.intensity = cinemaPlayingMode ? 0 : 0.42;
             if (frontCarpetMesh && frontCarpetMesh.material) frontCarpetMesh.material.color.setHex(cinemaPlayingMode ? 0x160b10 : 0x650d20);
             carpetEdgeMeshes.forEach(edge => { edge.visible = !cinemaPlayingMode; });
+            if (floorRunnerMesh && floorRunnerMesh.material) floorRunnerMesh.material.color.setHex(cinemaPlayingMode ? 0x101014 : 0x241019);
+            floorGuideMeshes.forEach(line => { line.visible = !cinemaPlayingMode; });
             // Turn off the decorative ceiling RGB strip during playback; restore it on pause/end.
             rgbStripLights.forEach(strip => { strip.visible = !cinemaPlayingMode; });
             if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.92 : 1.08;
