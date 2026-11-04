@@ -916,10 +916,10 @@ header > div { min-width: 0; }
             scene.add(overheadLight);
 
             wallMaterial = new THREE.MeshStandardMaterial({
-                color: 0x191a1d, roughness: 0.94, metalness: 0.025
+                color: 0x1b1015, roughness: 0.94, metalness: 0.025
             });
             floorMaterial = new THREE.MeshStandardMaterial({
-                color: 0x181819, roughness: 1.0, metalness: 0.0
+                color: 0x111114, roughness: 1.0, metalness: 0.0
             });
 
             // Keep enough width for the existing ScreenX panels at their widest setting.
@@ -944,7 +944,7 @@ header > div { min-width: 0; }
             updateBackWallCurvature();
 
             const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth),
-                new THREE.MeshStandardMaterial({ color: 0x19191b, roughness: 1.0, metalness: 0.0 }));
+                new THREE.MeshStandardMaterial({ color: 0x141216, roughness: 1.0, metalness: 0.0 }));
             floor.rotation.x = -Math.PI / 2;
             floor.position.set(0, -5, roomCenterZ);
             floor.receiveShadow = true;
@@ -979,11 +979,11 @@ header > div { min-width: 0; }
             rearWall.position.set(0, roomHeight / 2 - 5, sideEndZ);
             scene.add(rearWall);
 
-            const acousticMat = new THREE.MeshStandardMaterial({ color: 0x242528, roughness: 0.97, metalness: 0.015 });
-            const insetMat = new THREE.MeshStandardMaterial({ color: 0x101113, roughness: 0.94, metalness: 0.02 });
-            const trimMat = new THREE.MeshStandardMaterial({ color: 0x37383a, roughness: 0.48, metalness: 0.38 });
-            const accentMat = new THREE.MeshBasicMaterial({ color: 0x8b6749, toneMapped: false });
-            const guidanceMat = new THREE.MeshBasicMaterial({ color: 0xffb16b, toneMapped: false });
+            const acousticMat = new THREE.MeshStandardMaterial({ color: 0x29171d, roughness: 0.97, metalness: 0.015 });
+            const insetMat = new THREE.MeshStandardMaterial({ color: 0x101014, roughness: 0.94, metalness: 0.02 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0x54202d, roughness: 0.48, metalness: 0.38 });
+            const accentMat = new THREE.MeshBasicMaterial({ color: 0x9f2943, toneMapped: false });
+            const guidanceMat = new THREE.MeshBasicMaterial({ color: 0xff405d, toneMapped: false });
             const speakerMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.66, metalness: 0.1 });
             const speakerConeMat = new THREE.MeshStandardMaterial({ color: 0x292b2e, roughness: 0.8, metalness: 0.04 });
 
@@ -1065,13 +1065,69 @@ header > div { min-width: 0; }
             scene.add(wallGlowLeft, wallGlowRight);
 
             createTheaterSeats();
+            createSideStairsAndVending();
+        }
+
+        // Side access stairs and illuminated concessions; kept clear of the 15-seat layout and screen.
+        function createSideStairsAndVending() {
+            const stepMat = new THREE.MeshStandardMaterial({ color: 0x242126, roughness: 0.9, metalness: 0.08 });
+            const edgeMat = new THREE.MeshBasicMaterial({ color: 0xff294f, toneMapped: false });
+            const machineBody = new THREE.MeshStandardMaterial({ color: 0x17191d, roughness: 0.38, metalness: 0.55 });
+            const glassMat = new THREE.MeshStandardMaterial({ color: 0x26313a, roughness: 0.18, metalness: 0.2, transparent: true, opacity: 0.78 });
+            const productMats = [
+                new THREE.MeshStandardMaterial({ color: 0xe2a52d, roughness: 0.42 }),
+                new THREE.MeshStandardMaterial({ color: 0xc52c48, roughness: 0.4 }),
+                new THREE.MeshStandardMaterial({ color: 0x2e9b78, roughness: 0.42 }),
+                new THREE.MeshStandardMaterial({ color: 0x4b79c8, roughness: 0.42 })
+            ];
+            for (const side of [-1, 1]) {
+                // Three short stair flights follow the stepped seating levels on both outer aisles.
+                for (let flight = 0; flight < 2; flight++) {
+                    for (let i = 0; i < 5; i++) {
+                        const z = 11.25 + flight * 5.0 + i * 0.58;
+                        const y = -4.72 + flight * 0.85 + i * 0.17;
+                        const tread = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.34, 0.62), stepMat);
+                        tread.position.set(side * 9.15, y, z);
+                        tread.receiveShadow = true;
+                        scene.add(tread);
+                        const edge = new THREE.Mesh(new THREE.BoxGeometry(1.40, 0.035, 0.045), edgeMat);
+                        edge.position.set(side * 9.15, y + 0.18, z - 0.285);
+                        scene.add(edge);
+                    }
+                }
+                // A softly lit snack/drink vending cabinet on each side wall, behind the seats.
+                const x = side * 23.45;
+                const z = 34.5;
+                const cabinet = new THREE.Mesh(new THREE.BoxGeometry(2.05, 4.1, 1.35), machineBody);
+                cabinet.position.set(x, -2.85, z);
+                scene.add(cabinet);
+                const display = new THREE.Mesh(new THREE.BoxGeometry(1.68, 2.55, 0.075), glassMat);
+                display.position.set(x, -2.45, z - 0.70);
+                scene.add(display);
+                const glow = new THREE.PointLight(0xff4966, 1.05, 7, 2);
+                glow.position.set(x, -1.9, z - 1.05);
+                scene.add(glow);
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        const item = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.42, 0.16), productMats[(row + col) % productMats.length]);
+                        item.position.set(x - 0.53 + col * 0.35, -1.55 - row * 0.72, z - 0.80);
+                        scene.add(item);
+                    }
+                }
+                const slot = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.22, 0.08), edgeMat);
+                slot.position.set(x, -4.05, z - 0.72);
+                scene.add(slot);
+                const sign = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.24, 0.06), edgeMat);
+                sign.position.set(x, -0.78, z - 0.72);
+                scene.add(sign);
+            }
         }
 
         function createTheaterSeats() {
             // Premium black leather recliners; isolated from the unchanged screen/ScreenX system.
-            const upholstery = new THREE.MeshStandardMaterial({ color: 0x171819, roughness: 0.46, metalness: 0.025 });
-            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x252629, roughness: 0.60, metalness: 0.015 });
-            const seamMat = new THREE.MeshStandardMaterial({ color: 0x3a3b3d, roughness: 0.62, metalness: 0.02 });
+            const upholstery = new THREE.MeshStandardMaterial({ color: 0x4a0d1d, roughness: 0.34, metalness: 0.035 });
+            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x741a30, roughness: 0.48, metalness: 0.02 });
+            const seamMat = new THREE.MeshStandardMaterial({ color: 0xc05a70, roughness: 0.56, metalness: 0.02 });
             const trimMat = new THREE.MeshStandardMaterial({ color: 0x101112, roughness: 0.48, metalness: 0.28 });
             const cupMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.25, metalness: 0.58 });
             const riserMat = new THREE.MeshStandardMaterial({ color: 0x202123, roughness: 0.97, metalness: 0.01 });
