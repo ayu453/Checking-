@@ -55,7 +55,8 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
-          python3 -m pip install --quiet pillow
+          sudo apt-get update
+          sudo apt-get install -y python3-pil
           python3 scripts/generate-android-icon.py
 
       - name: Enforce Google Play target API 36
