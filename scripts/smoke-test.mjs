@@ -37,7 +37,10 @@ assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be pre
 assert.match(html, /video\.addEventListener\(['"]playing['"]/i, 'Playback start handler must exist');
 assert.match(html, /video\.addEventListener\(['"]pause['"]/i, 'Playback pause handler must exist');
 assert.match(html, /side-fullscreen-toggle[\s\S]*?btn-fullscreen/, 'Dedicated app fullscreen control must be wired');
-assert.match(html, /side-landscape-toggle[\s\S]*?orientation\.lock\(['"]landscape['"]\)/, 'Landscape control must request landscape orientation');
+assert.match(html, /side-landscape-toggle[\s\S]*?orientationPlugin\.lock\(\{ orientation: 'landscape' \}\)/, 'Landscape control must use native orientation plugin');
+assert.match(html, /screen\.orientation\.lock\(['"]landscape['"]\)/, 'Landscape control must use browser orientation lock');
+assert.doesNotMatch(html, /rotate-landscape-fallback|rotate\(90deg\)/, 'Landscape must not use fake CSS rotation');
+assert.ok(html.indexOf('id="side-landscape-toggle"') < html.indexOf('id="cinema-right-tools"'), 'Landscape control must be placed in left-side controls');
 assert.match(html, /href=["']assets\/icon\.svg["']/, 'Branded web app icon must be linked');
 assert.match(html, /ceilingStripLights\.forEach\(strip => \{ strip\.visible = !cinemaPlayingMode; \}\)/, 'Ceiling strips must switch off during playback');
 assert.doesNotMatch(html, /ytCinemaLauncher|ytCinemaPanel|youtube-nocookie\.com/i, 'Removed YouTube launcher must stay removed');
