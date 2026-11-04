@@ -788,6 +788,7 @@ header > div { min-width: 0; }
         let currentObjectUrl = null;
         let videoTexture, ambientLight, spotLight, overheadLight;
         let cinemaPlayingMode = false;
+        let rgbStripLights = []; // Decorative ceiling RGB strips, switched off during movie playback.
         let theaterRoom, wallMaterial, floorMaterial;
         let preFitCamera = null;
 
@@ -1053,6 +1054,7 @@ header > div { min-width: 0; }
             scene.add(ceiling);
             const ceilingField = new THREE.MeshStandardMaterial({ color: 0x100c10, roughness: 0.72, metalness: 0.22 });
             const ceilingRecess = new THREE.MeshStandardMaterial({ color: 0x03050c, roughness: 0.92, metalness: 0.12 });
+            rgbStripLights = [];
             for (let z = -0.5; z <= 24; z += 5.0) {
                 const coffer = new THREE.Mesh(new THREE.BoxGeometry(44, 0.24, 4.0), ceilingField);
                 coffer.position.set(0, 14.82, z);
@@ -1063,6 +1065,7 @@ header > div { min-width: 0; }
                 for (const x of [-20.9, 20.9]) {
                     const border = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 3.55), redGlow);
                     border.position.set(x, 14.59, z);
+                    rgbStripLights.push(border);
                     scene.add(border);
                 }
             }
@@ -1524,6 +1527,8 @@ header > div { min-width: 0; }
             aisleLights.forEach(light => {
                 if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xb51a35 : 0x761126);
             });
+            // Turn off the decorative ceiling RGB strip during playback; restore it on pause/end.
+            rgbStripLights.forEach(strip => { strip.visible = !cinemaPlayingMode; });
             if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.92 : 1.08;
         }
 
