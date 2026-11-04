@@ -1256,12 +1256,14 @@ header > div { min-width: 0; }
                 const x = pos.getX(i);
                 const normalizedX = x / (width / 2);
                 const zOffset = sagitta * normalizedX * normalizedX;
-                // Fixed phone-style side wrap: only the outer 20% of each edge bends
-                // gently toward the audience, independently of the main IMAX bow.
-                const edgeProgress = THREE.MathUtils.clamp((Math.abs(normalizedX) - 0.80) / 0.20, 0, 1);
-                const edgeSmooth = edgeProgress * edgeProgress * (3 - 2 * edgeProgress);
-                const fixedSideEdgeCurl = 0.72 * edgeSmooth;
-                pos.setZ(i, (Math.abs(curvatureVal) < 0.005 ? 0 : curveSign * zOffset) + fixedSideEdgeCurl);
+                // Subtle phone-display wrap on all four edges. The bend eases in
+                // gradually across the outer 45%, with no sharp crease at the transition.
+                const sideProgress = THREE.MathUtils.clamp((Math.abs(normalizedX) - 0.55) / 0.45, 0, 1);
+                const topBottomProgress = THREE.MathUtils.clamp((Math.abs(pos.getY(i)) / 7 - 0.55) / 0.45, 0, 1);
+                const sideEase = sideProgress * sideProgress * (3 - 2 * sideProgress);
+                const topBottomEase = topBottomProgress * topBottomProgress * (3 - 2 * topBottomProgress);
+                const fixedEdgeCurl = 0.24 * sideEase + 0.18 * topBottomEase;
+                pos.setZ(i, (Math.abs(curvatureVal) < 0.005 ? 0 : curveSign * zOffset) + fixedEdgeCurl);
             }
             geometry.computeVertexNormals();
             geometry.attributes.position.needsUpdate = true;
@@ -1317,12 +1319,14 @@ header > div { min-width: 0; }
                 const normalizedX = THREE.MathUtils.clamp(x / (width / 2), -1, 1);
                 const normalizedY = THREE.MathUtils.clamp(y / (height / 2), -1, 1);
                 const baseCurveZ = Math.abs(state.curvature) < 0.005 ? 0 : curveSign * sagitta * normalizedX * normalizedX;
-                // Keep a fixed, subtle phone-display-style curl on both vertical edges.
-                // The smooth ramp avoids a visible crease and leaves the central 80% untouched.
-                const edgeProgress = THREE.MathUtils.clamp((Math.abs(normalizedX) - 0.80) / 0.20, 0, 1);
-                const edgeSmooth = edgeProgress * edgeProgress * (3 - 2 * edgeProgress);
-                const fixedSideEdgeCurl = 0.72 * edgeSmooth;
-                const baseZ = baseCurveZ + fixedSideEdgeCurl;
+                // Match the fixed, gentle wrap on left/right and top/bottom edges.
+                // A broad smoothstep ramp prevents the screen from looking folded or pinched.
+                const sideProgress = THREE.MathUtils.clamp((Math.abs(normalizedX) - 0.55) / 0.45, 0, 1);
+                const topBottomProgress = THREE.MathUtils.clamp((Math.abs(normalizedY) - 0.55) / 0.45, 0, 1);
+                const sideEase = sideProgress * sideProgress * (3 - 2 * sideProgress);
+                const topBottomEase = topBottomProgress * topBottomProgress * (3 - 2 * topBottomProgress);
+                const fixedEdgeCurl = 0.24 * sideEase + 0.18 * topBottomEase;
+                const baseZ = baseCurveZ + fixedEdgeCurl;
                 let depthVal = 0;
 
                 if (state.depthMode === 'parallax') {
