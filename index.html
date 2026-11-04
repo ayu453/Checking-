@@ -783,7 +783,7 @@ header > div { min-width: 0; }
         let screenMesh, screenGeometry, screenMaterial, screenFrameMesh;
         let backWallMesh = null, backWallGeometry = null;
         let screenXGroup, screenXMaterials = [];
-        let wallGlowLeft, wallGlowRight, aisleLights = [];
+        let wallGlowLeft, wallGlowRight, aisleLights = [], cinemaAccentLights = [];
         let frameCounter = 0;
         let currentObjectUrl = null;
         let videoTexture, ambientLight, spotLight, overheadLight;
@@ -997,6 +997,7 @@ header > div { min-width: 0; }
                     const sconceLight = new THREE.PointLight(0xff244f, 0.32, 5, 2);
                     sconceLight.position.set(side * 24.9, 10.0, z);
                     scene.add(sconceLight);
+                    cinemaAccentLights.push(sconceLight);
                 }
 
                 // Cinematic framed movie-art panels on the side walls, like the reference auditorium.
@@ -1175,6 +1176,7 @@ header > div { min-width: 0; }
                 const glow = new THREE.PointLight(0xff4966, 1.05, 7, 2);
                 glow.position.set(x, -1.9, z - 1.05);
                 scene.add(glow);
+                cinemaAccentLights.push(glow);
                 for (let row = 0; row < 3; row++) {
                     for (let col = 0; col < 4; col++) {
                         const item = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.42, 0.16), productMats[(row + col) % productMats.length]);
@@ -1192,18 +1194,25 @@ header > div { min-width: 0; }
         }
 
         function createTheaterSeats() {
-            // Premium black leather recliners; isolated from the unchanged screen/ScreenX system.
-            const upholstery = new THREE.MeshStandardMaterial({ color: 0x4a0d1d, roughness: 0.34, metalness: 0.035 });
-            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x741a30, roughness: 0.48, metalness: 0.02 });
-            const seamMat = new THREE.MeshStandardMaterial({ color: 0xc05a70, roughness: 0.56, metalness: 0.02 });
-            const trimMat = new THREE.MeshStandardMaterial({ color: 0x101112, roughness: 0.48, metalness: 0.28 });
-            const cupMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.25, metalness: 0.58 });
-            const riserMat = new THREE.MeshStandardMaterial({ color: 0x202123, roughness: 0.97, metalness: 0.01 });
+            // Plush burgundy leather recliners inspired by the reference auditorium.
+            // Preserve the exact 3 rows x 5 seats, spacing, riser heights and seat coordinates.
+            const upholstery = new THREE.MeshStandardMaterial({ color: 0x3b0817, roughness: 0.30, metalness: 0.025 });
+            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x681327, roughness: 0.40, metalness: 0.02 });
+            const pipingMat = new THREE.MeshStandardMaterial({ color: 0xa83b52, roughness: 0.48, metalness: 0.02 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0x090a0d, roughness: 0.42, metalness: 0.32 });
+            const cupMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.20, metalness: 0.68 });
+            const riserMat = new THREE.MeshStandardMaterial({ color: 0x17151a, roughness: 0.96, metalness: 0.03 });
             const seatGroup = new THREE.Group();
-            const rows = 3;
-            const seatsPerRow = 5;
-            const seatSpacing = 2.75;
-            const rowSpacing = 5.0;
+            const rows = 3, seatsPerRow = 5, seatSpacing = 2.75, rowSpacing = 5.0;
+            const sphereGeo = new THREE.SphereGeometry(1, 20, 14);
+            const padded = (parent, material, size, position, rotationX = 0) => {
+                const mesh = new THREE.Mesh(sphereGeo, material);
+                mesh.scale.set(size[0], size[1], size[2]);
+                mesh.position.set(position[0], position[1], position[2]);
+                mesh.rotation.x = rotationX;
+                parent.add(mesh);
+                return mesh;
+            };
 
             for (let r = 0; r < rows; r++) {
                 const zPos = 9.0 + r * rowSpacing;
@@ -1221,50 +1230,32 @@ header > div { min-width: 0; }
                     seat.position.set(xPos, floorY, zPos);
 
                     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.12, 0.82), trimMat);
-                    foot.position.set(0, 0.12, 0);
-                    seat.add(foot);
+                    foot.position.set(0, 0.12, 0); seat.add(foot);
                     const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.40, 0.28), trimMat);
-                    pedestal.position.set(0, 0.37, 0.02);
-                    seat.add(pedestal);
+                    pedestal.position.set(0, 0.37, 0.02); seat.add(pedestal);
 
-                    const base = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.32, 1.30), upholstery);
-                    base.position.set(0, 0.65, -0.08);
-                    seat.add(base);
-                    const topCushion = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.16, 1.12), cushionMat);
-                    topCushion.position.set(0, 0.85, -0.12);
-                    seat.add(topCushion);
-                    const seam = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.012, 0.022), seamMat);
-                    seam.position.set(0, 0.94, -0.20);
-                    seat.add(seam);
+                    // Rounded, generously padded seat base and waterfall front edge.
+                    padded(seat, upholstery, [0.78, 0.22, 0.70], [0, 0.67, -0.10]);
+                    padded(seat, cushionMat, [0.70, 0.13, 0.59], [0, 0.82, -0.14]);
+                    padded(seat, pipingMat, [0.56, 0.018, 0.018], [0, 0.91, -0.58]);
 
-                    const back = new THREE.Mesh(new THREE.BoxGeometry(1.48, 1.42, 0.30), upholstery);
-                    back.position.set(0, 1.50, 0.50);
-                    back.rotation.x = -0.09;
-                    seat.add(back);
-                    const backPad = new THREE.Mesh(new THREE.BoxGeometry(1.26, 1.06, 0.12), cushionMat);
-                    backPad.position.set(0, 1.51, 0.31);
-                    backPad.rotation.x = -0.09;
-                    seat.add(backPad);
-                    const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.80, 0.38, 0.29), cushionMat);
-                    headrest.position.set(0, 2.20, 0.43);
-                    headrest.rotation.x = -0.08;
-                    seat.add(headrest);
+                    // Thick reclining back with separate lumbar and head cushions.
+                    padded(seat, upholstery, [0.75, 0.78, 0.19], [0, 1.48, 0.48], -0.10);
+                    padded(seat, cushionMat, [0.63, 0.59, 0.105], [0, 1.49, 0.285], -0.10);
+                    padded(seat, upholstery, [0.43, 0.22, 0.17], [0, 2.13, 0.40], -0.08);
+                    padded(seat, pipingMat, [0.52, 0.018, 0.018], [0, 1.02, 0.265], -0.10);
 
                     for (const side of [-1, 1]) {
-                        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.42, 1.08), upholstery);
-                        arm.position.set(side * 0.86, 0.96, -0.02);
-                        seat.add(arm);
-                        const armTop = new THREE.Mesh(new THREE.BoxGeometry(0.245, 0.065, 0.96), cushionMat);
-                        armTop.position.set(side * 0.86, 1.20, -0.03);
-                        seat.add(armTop);
-                        const cupHolder = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.09, 12), cupMat);
-                        cupHolder.position.set(side * 0.86, 1.29, -0.33);
+                        padded(seat, upholstery, [0.15, 0.22, 0.57], [side * 0.84, 0.94, -0.02]);
+                        padded(seat, cushionMat, [0.16, 0.055, 0.49], [side * 0.84, 1.16, -0.03]);
+                        const cupHolder = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.09, 0.085, 18), cupMat);
+                        cupHolder.position.set(side * 0.84, 1.235, -0.32);
                         seat.add(cupHolder);
+                        const cupInner = new THREE.Mesh(new THREE.CylinderGeometry(0.067, 0.067, 0.012, 18),
+                            new THREE.MeshBasicMaterial({ color: 0x020304 }));
+                        cupInner.position.set(side * 0.84, 1.282, -0.32);
+                        seat.add(cupInner);
                     }
-
-                    const frontTrim = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.025, 0.03), seamMat);
-                    frontTrim.position.set(0, 0.92, -0.73);
-                    seat.add(frontTrim);
                     seatGroup.add(seat);
                 }
             }
@@ -1528,16 +1519,17 @@ header > div { min-width: 0; }
         // Bright premium auditorium before playback; immersive dark mode during playback.
         function setCinemaLighting(isPlaying) {
             cinemaPlayingMode = !!isPlaying;
-            // During playback retain the premium low-level red aisle/cove glow—never black out the room.
-            if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.30 : 1.05;
-            if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.08 : 0.78;
-            if (spotLight) spotLight.intensity = cinemaPlayingMode ? Math.max(0.22, state.lightIntensity * 0.68) : 0.55;
-            if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode ? 0.20 : 0.32;
-            if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode ? 0.20 : 0.32;
+            // Keep the auditorium visible with a restrained red cove/aisle glow during films.
+            if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.24 : 0.72;
+            if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.035 : 0.38;
+            if (spotLight) spotLight.intensity = cinemaPlayingMode ? Math.max(0.12, state.lightIntensity * 0.34) : 0.48;
+            if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode ? 0.12 : 0.28;
+            if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode ? 0.12 : 0.28;
+            cinemaAccentLights.forEach(light => { light.intensity = cinemaPlayingMode ? 0.10 : 0.32; });
             aisleLights.forEach(light => {
-                if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xff3859 : 0xff294f);
+                if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xff526d : 0xff294f);
             });
-            if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.96 : 1.08;
+            if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.92 : 1.08;
         }
 
         function initVideoPlayer() {
