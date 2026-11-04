@@ -132,8 +132,6 @@
         }
 
         /* Landscape is handled by the device orientation API; never rotate the app with CSS. */
-        #side-landscape-toggle, #side-fullscreen-toggle { border-color:rgba(220,38,38,.38); }
-        #side-landscape-toggle:hover, #side-fullscreen-toggle:hover { border-color:rgba(248,113,113,.9); background:rgba(127,29,29,.72); }
         /* Landscape phone/tablet layout: compact controls, wider playback bar. */
         @media (orientation: landscape) and (max-height: 600px) {
             header { padding: 8px !important; }
@@ -603,7 +601,6 @@ header > div { min-width: 0; }
       <button type="button" class="cinema-icon-tool" id="side-imax-toggle" aria-label="Toggle IMAX Only" title="IMAX Only"><i class="fa-solid fa-film"></i><span class="tool-label">IMAX Only</span></button>
       <button type="button" class="cinema-icon-tool" id="side-fit-toggle" aria-label="Toggle Fit Only" title="Fit Only"><i class="fa-solid fa-up-right-and-down-left-from-center"></i><span class="tool-label">Fit Only</span></button>
       
-      <button type="button" class="cinema-icon-tool" id="side-fullscreen-toggle" aria-label="Toggle app fullscreen" title="Full Screen"><i class="fa-solid fa-expand"></i><span class="tool-label">Full Screen</span></button>
       <div id="side-seat-slot"></div>
       <div id="side-rim-slot"></div>
     </div>
@@ -1879,10 +1876,7 @@ header > div { min-width: 0; }
             syncSideRatioToggle();
             document.getElementById('side-imax-toggle').addEventListener('click', () => document.getElementById('btn-screenx').click());
             document.getElementById('side-fit-toggle').addEventListener('click', () => document.getElementById('btn-edge-fit').click());
-            // Dedicated orientation and fullscreen controls; Fit Only remains a separate feature.
-            document.getElementById('side-fullscreen-toggle').addEventListener('click', () => {
-                document.getElementById('btn-fullscreen').click();
-            });
+            // The original main-toolbar fullscreen button remains the only fullscreen control.
             let landscapeModeEnabled = false;
             document.getElementById('side-landscape-toggle').addEventListener('click', async () => {
                 const orientationPlugin = window.Capacitor && window.Capacitor.Plugins
