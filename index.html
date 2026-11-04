@@ -1101,12 +1101,7 @@ header > div { min-width: 0; }
                 const recess = new THREE.Mesh(new THREE.BoxGeometry(39.5, 0.08, 2.9), ceilingRecess);
                 recess.position.set(0, 14.66, z);
                 scene.add(recess);
-                for (const x of [-20.9, 20.9]) {
-                    const border = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 3.55), redGlow);
-                    border.position.set(x, 14.59, z);
-                    rgbStripLights.push(border);
-                    scene.add(border);
-                }
+                // Removed the upper red LED strip; keep the dark ceiling coffers only.
             }
             // Central galaxy panel: subtle blue-black night-sky finish with tiny fixed star lights.
             const galaxyPanel = new THREE.Mesh(new THREE.BoxGeometry(23.5, 0.10, 28.5), ceilingRecess);
