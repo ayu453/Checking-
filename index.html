@@ -1580,8 +1580,8 @@ header > div { min-width: 0; }
                 updateStatus('VIDEO READY');
                 if (videoTexture) videoTexture.needsUpdate = true;
             });
-            video.addEventListener('playing', () => { setInteriorBlackMode(true); setCinemaLighting(true); updatePlayButtonUI(true); updateStatus(state.screenX ? 'PLAYING · IMAX + SCREENX' : 'PLAYING · IMAX ONLY'); });
-            video.addEventListener('pause', () => { setInteriorBlackMode(false); setCinemaLighting(false); updatePlayButtonUI(false); updateStatus(state.screenX ? 'PAUSED · IMAX + SCREENX' : 'PAUSED · IMAX ONLY'); });
+            video.addEventListener('playing', () => { setCinemaLighting(true); updatePlayButtonUI(true); updateStatus(state.screenX ? 'PLAYING · IMAX + SCREENX' : 'PLAYING · IMAX ONLY'); });
+            video.addEventListener('pause', () => { setCinemaLighting(false); updatePlayButtonUI(false); updateStatus(state.screenX ? 'PAUSED · IMAX + SCREENX' : 'PAUSED · IMAX ONLY'); });
             video.addEventListener('error', () => updateStatus('VIDEO ERROR · TRY UPLOAD'));
 
             btnPlay.addEventListener('click', togglePlay);
@@ -1590,7 +1590,7 @@ header > div { min-width: 0; }
                 try { video.currentTime = 0; } catch (_) {}
                 video.play().then(() => updatePlayButtonUI(true)).catch(() => updateStatus('RESTARTED · TAP PLAY'));
             });
-            video.addEventListener('ended', () => { setInteriorBlackMode(false); setCinemaLighting(false); updatePlayButtonUI(false); });
+            video.addEventListener('ended', () => { setCinemaLighting(false); updatePlayButtonUI(false); });
 
             video.addEventListener('timeupdate', () => {
                 if (!isNaN(video.duration)) {
@@ -1798,7 +1798,7 @@ header > div { min-width: 0; }
                 spotLight.intensity = Math.max(0.22, state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2));
                 if (wallGlowLeft) {
                     // Keep the auditorium's premium burgundy wall wash stable; only the screen ambilight follows the movie.
-                    const wallIntensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92);
+                    const wallIntensity = Math.max(0.24, state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92));
                     wallGlowLeft.intensity = wallIntensity;
                     wallGlowRight.intensity = wallIntensity;
                 }
