@@ -19,22 +19,22 @@ for (const id of [
   'player-bar',
   'seat-grid'
 ]) {
-  assert.match(html, new RegExp('id=["\\']' + id + '["\\']'), 'Required app element missing: ' + id);
+  assert.ok(html.includes('id="' + id + '"') || html.includes("id='" + id + "'"), 'Required app element missing: ' + id);
 }
 
-const scripts = [...html.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi)];
+const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
 let inlineScriptCount = 0;
 for (const [, attrs, body] of scripts) {
-  if (/\\bsrc\\s*=/.test(attrs) || !body.trim()) continue;
+  if (/\bsrc\s*=/.test(attrs) || !body.trim()) continue;
   inlineScriptCount++;
   new vm.Script(body, { filename: 'index.html:inline-script-' + inlineScriptCount });
 }
 assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be present');
 
-assert.match(html, /video\\.addEventListener\\(['"]playing['"]/i, 'Playback start handler must exist');
-assert.match(html, /video\\.addEventListener\\(['"]pause['"]/i, 'Playback pause handler must exist');
-assert.match(html, /ceilingStripLights\\.forEach\\(strip => \\{ strip\\.visible = !cinemaPlayingMode; \\}\\)/, 'Ceiling strips must switch off during playback');
-assert.doesNotMatch(html, /ytCinemaLauncher|ytCinemaPanel|youtube-nocookie\\.com/i, 'Removed YouTube launcher must stay removed');
+assert.match(html, /video\.addEventListener\(['"]playing['"]/i, 'Playback start handler must exist');
+assert.match(html, /video\.addEventListener\(['"]pause['"]/i, 'Playback pause handler must exist');
+assert.match(html, /ceilingStripLights\.forEach\(strip => \{ strip\.visible = !cinemaPlayingMode; \}\)/, 'Ceiling strips must switch off during playback');
+assert.doesNotMatch(html, /ytCinemaLauncher|ytCinemaPanel|youtube-nocookie\.com/i, 'Removed YouTube launcher must stay removed');
 assert.doesNotMatch(html, /frontCarpetMesh|carpetEdgeMeshes|Rich crimson carpet runner/i, 'Removed front carpet must stay removed');
 
 console.log('PASS: HTML structure, required controls, inline JavaScript syntax, playback handlers, ceiling lighting, and requested removals.');
