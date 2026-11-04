@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#08090d">
     <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
     <title>IMAX + ScreenX Immersive Cinema Simulator · Quick Controls</title>
@@ -131,13 +131,7 @@
             #seat-grid button { min-height: 32px; }
         }
 
-        /* Fallback landscape simulation when browser/device orientation lock is unavailable. */
-        body.rotate-landscape-fallback { overflow: hidden !important; }
-        body.rotate-landscape-fallback #app {
-            position: fixed !important; width: 100dvh !important; height: 100vw !important;
-            max-width: none !important; transform: rotate(90deg) translateY(-100%);
-            transform-origin: top left; left: 100vw !important; top: 0 !important;
-        }
+        /* Landscape is handled by the device orientation API; never rotate the app with CSS. */
         #side-landscape-toggle, #side-fullscreen-toggle { border-color:rgba(220,38,38,.38); }
         #side-landscape-toggle:hover, #side-fullscreen-toggle:hover { border-color:rgba(248,113,113,.9); background:rgba(127,29,29,.72); }
         /* Landscape phone/tablet layout: compact controls, wider playback bar. */
@@ -243,7 +237,7 @@
 
     <style id="mobile-responsive-overrides">
       :root { color-scheme: dark; }
-      html, body { min-height:100%; min-height:100dvh; overscroll-behavior:none; }
+      html, body { width:100%; height:100%; min-height:100%; min-height:100dvh; overscroll-behavior:none; background:#050508; }
       body { overflow:hidden; }
       #canvas-container, #canvas-container canvas { width:100%; height:100%; }
       button, input, select, label { -webkit-tap-highlight-color:transparent; }
@@ -591,6 +585,7 @@ header > div { min-width: 0; }
     <!-- Side-mounted cinema controls: icons stay visible; labels appear on hover or tap. -->
     <div id="cinema-left-tools" class="cinema-side-tools cinema-side-left" aria-label="Screen and lighting controls">
       <button type="button" class="cinema-icon-tool" id="side-ratio-toggle" aria-label="Toggle aspect ratio" title="Toggle Aspect Ratio"><i class="fa-solid fa-arrows-left-right-to-line"></i><span class="tool-label">Aspect 1.43:1</span></button>
+      <button type="button" class="cinema-icon-tool" id="side-landscape-toggle" aria-label="Switch to landscape" title="Landscape"><i class="fa-solid fa-mobile-screen-button"></i><span class="tool-label">Landscape</span></button>
       <button type="button" class="cinema-icon-tool" id="side-theme-toggle" aria-label="Toggle Dark Cinema and Full Ambilight" title="Dark Cinema / Full Ambilight"><i class="fa-solid fa-moon"></i><span class="tool-label">Dark Cinema</span></button>
       <div id="side-curvature-wrap" class="relative">
         <button type="button" class="cinema-icon-tool" id="side-curvature" aria-label="Screen curvature" aria-expanded="false" aria-controls="curvature-popover" title="Curvature"><i class="fa-solid fa-bezier-curve"></i><span class="tool-label">Curvature</span></button>
@@ -607,7 +602,7 @@ header > div { min-width: 0; }
     <div id="cinema-right-tools" class="cinema-side-tools cinema-side-right" aria-label="Cinema fit and quick controls">
       <button type="button" class="cinema-icon-tool" id="side-imax-toggle" aria-label="Toggle IMAX Only" title="IMAX Only"><i class="fa-solid fa-film"></i><span class="tool-label">IMAX Only</span></button>
       <button type="button" class="cinema-icon-tool" id="side-fit-toggle" aria-label="Toggle Fit Only" title="Fit Only"><i class="fa-solid fa-up-right-and-down-left-from-center"></i><span class="tool-label">Fit Only</span></button>
-      <button type="button" class="cinema-icon-tool" id="side-landscape-toggle" aria-label="Switch to landscape" title="Landscape"><i class="fa-solid fa-mobile-screen-button"></i><span class="tool-label">Landscape</span></button>
+      
       <button type="button" class="cinema-icon-tool" id="side-fullscreen-toggle" aria-label="Toggle app fullscreen" title="Full Screen"><i class="fa-solid fa-expand"></i><span class="tool-label">Full Screen</span></button>
       <div id="side-seat-slot"></div>
       <div id="side-rim-slot"></div>
@@ -1888,23 +1883,48 @@ header > div { min-width: 0; }
             document.getElementById('side-fullscreen-toggle').addEventListener('click', () => {
                 document.getElementById('btn-fullscreen').click();
             });
+            let landscapeModeEnabled = false;
             document.getElementById('side-landscape-toggle').addEventListener('click', async () => {
+                const orientationPlugin = window.Capacitor && window.Capacitor.Plugins
+                    ? window.Capacitor.Plugins.ScreenOrientation : null;
+                const isNativeCapacitor = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+                const root = document.documentElement;
                 try {
-                    const root = document.documentElement;
-                    if (!document.fullscreenElement && root.requestFullscreen) await root.requestFullscreen();
-                    if (screen.orientation && screen.orientation.lock) {
-                        await screen.orientation.lock('landscape');
-                        document.body.classList.remove('rotate-landscape-fallback');
-                        updateStatus('LANDSCAPE MODE ON');
+                    if (landscapeModeEnabled) {
+                        if (isNativeCapacitor && orientationPlugin && orientationPlugin.unlock) {
+                            await orientationPlugin.unlock();
+                        } else if (screen.orientation && screen.orientation.unlock) {
+                            screen.orientation.unlock();
+                        }
+                        landscapeModeEnabled = false;
+                        const btn = document.getElementById('side-landscape-toggle');
+                        btn.querySelector('.tool-label').textContent = 'Landscape';
+                        btn.setAttribute('aria-label', 'Switch to landscape');
+                        updateStatus('AUTO ROTATION RESTORED');
                     } else {
-                        document.body.classList.add('rotate-landscape-fallback');
-                        updateStatus('LANDSCAPE VIEW ON');
+                        // Browser fullscreen is required by Chromium before its orientation lock can succeed.
+                        if (!isNativeCapacitor && !document.fullscreenElement) {
+                            const request = root.requestFullscreen || root.webkitRequestFullscreen;
+                            if (request) await request.call(root);
+                        }
+                        if (isNativeCapacitor && orientationPlugin && orientationPlugin.lock) {
+                            await orientationPlugin.lock({ orientation: 'landscape' });
+                        } else if (screen.orientation && screen.orientation.lock) {
+                            await screen.orientation.lock('landscape');
+                        } else {
+                            throw new Error('Device orientation lock is not supported in this browser');
+                        }
+                        landscapeModeEnabled = true;
+                        const btn = document.getElementById('side-landscape-toggle');
+                        btn.querySelector('.tool-label').textContent = 'Auto Rotate';
+                        btn.setAttribute('aria-label', 'Restore automatic orientation');
+                        updateStatus('LANDSCAPE MODE ON');
                     }
-                } catch (_) {
-                    document.body.classList.add('rotate-landscape-fallback');
-                    updateStatus('LANDSCAPE VIEW ON');
+                } catch (error) {
+                    updateStatus('LANDSCAPE LOCK UNAVAILABLE · ROTATE DEVICE');
+                    console.warn('Landscape orientation lock failed:', error);
                 }
-                setTimeout(() => { if (typeof onWindowResize === 'function') onWindowResize(); }, 180);
+                setTimeout(() => { if (typeof onWindowResize === 'function') onWindowResize(); }, 300);
             });
             document.getElementById('side-theme-toggle').addEventListener('click', () => {
                 if (state.themeMode === 'dark') document.getElementById('btn-theme-glow').click();
@@ -2608,8 +2628,12 @@ header > div { min-width: 0; }
             if (!camera || !renderer) return;
             const viewport = window.visualViewport;
             const container = document.getElementById('canvas-container');
-            const width = Math.max(1, Math.round((container && container.clientWidth) || (viewport && viewport.width) || window.innerWidth));
-            const height = Math.max(1, Math.round((container && container.clientHeight) || (viewport && viewport.height) || window.innerHeight));
+            const width = Math.max(1, Math.round((viewport && viewport.width) || window.innerWidth));
+            const height = Math.max(1, Math.round((viewport && viewport.height) || window.innerHeight));
+            if (container) {
+                container.style.width = width + 'px';
+                container.style.height = height + 'px';
+            }
             camera.aspect = width / height;
 
             // On narrow browser viewports, widen the lens enough to keep the full IMAX
