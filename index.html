@@ -136,6 +136,8 @@
             max-width: none !important; transform: rotate(90deg) translateY(-100%);
             transform-origin: top left; left: 100vw !important; top: 0 !important;
         }
+        #side-landscape-toggle, #side-fullscreen-toggle { border-color:rgba(220,38,38,.38); }
+        #side-landscape-toggle:hover, #side-fullscreen-toggle:hover { border-color:rgba(248,113,113,.9); background:rgba(127,29,29,.72); }
         /* Landscape phone/tablet layout: compact controls, wider playback bar. */
         @media (orientation: landscape) and (max-height: 600px) {
             header { padding: 8px !important; }
@@ -603,6 +605,8 @@ header > div { min-width: 0; }
     <div id="cinema-right-tools" class="cinema-side-tools cinema-side-right" aria-label="Cinema fit and quick controls">
       <button type="button" class="cinema-icon-tool" id="side-imax-toggle" aria-label="Toggle IMAX Only" title="IMAX Only"><i class="fa-solid fa-film"></i><span class="tool-label">IMAX Only</span></button>
       <button type="button" class="cinema-icon-tool" id="side-fit-toggle" aria-label="Toggle Fit Only" title="Fit Only"><i class="fa-solid fa-up-right-and-down-left-from-center"></i><span class="tool-label">Fit Only</span></button>
+      <button type="button" class="cinema-icon-tool" id="side-landscape-toggle" aria-label="Switch to landscape" title="Landscape"><i class="fa-solid fa-mobile-screen-button"></i><span class="tool-label">Landscape</span></button>
+      <button type="button" class="cinema-icon-tool" id="side-fullscreen-toggle" aria-label="Toggle app fullscreen" title="Full Screen"><i class="fa-solid fa-expand"></i><span class="tool-label">Full Screen</span></button>
       <div id="side-seat-slot"></div>
       <div id="side-rim-slot"></div>
     </div>
@@ -1878,6 +1882,28 @@ header > div { min-width: 0; }
             syncSideRatioToggle();
             document.getElementById('side-imax-toggle').addEventListener('click', () => document.getElementById('btn-screenx').click());
             document.getElementById('side-fit-toggle').addEventListener('click', () => document.getElementById('btn-edge-fit').click());
+            // Dedicated orientation and fullscreen controls; Fit Only remains a separate feature.
+            document.getElementById('side-fullscreen-toggle').addEventListener('click', () => {
+                document.getElementById('btn-fullscreen').click();
+            });
+            document.getElementById('side-landscape-toggle').addEventListener('click', async () => {
+                try {
+                    const root = document.documentElement;
+                    if (!document.fullscreenElement && root.requestFullscreen) await root.requestFullscreen();
+                    if (screen.orientation && screen.orientation.lock) {
+                        await screen.orientation.lock('landscape');
+                        document.body.classList.remove('rotate-landscape-fallback');
+                        updateStatus('LANDSCAPE MODE ON');
+                    } else {
+                        document.body.classList.add('rotate-landscape-fallback');
+                        updateStatus('LANDSCAPE VIEW ON');
+                    }
+                } catch (_) {
+                    document.body.classList.add('rotate-landscape-fallback');
+                    updateStatus('LANDSCAPE VIEW ON');
+                }
+                setTimeout(() => { if (typeof onWindowResize === 'function') onWindowResize(); }, 180);
+            });
             document.getElementById('side-theme-toggle').addEventListener('click', () => {
                 if (state.themeMode === 'dark') document.getElementById('btn-theme-glow').click();
                 else document.getElementById('btn-theme-dark').click();
