@@ -17,7 +17,10 @@ for (const id of [
   'header-upload-video',
   'controls-panel',
   'player-bar',
-  'seat-grid'
+  'seat-grid',
+  'side-fullscreen-toggle',
+  'side-landscape-toggle',
+  'side-fit-toggle'
 ]) {
   assert.ok(html.includes('id="' + id + '"') || html.includes("id='" + id + "'"), 'Required app element missing: ' + id);
 }
@@ -33,8 +36,11 @@ assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be pre
 
 assert.match(html, /video\.addEventListener\(['"]playing['"]/i, 'Playback start handler must exist');
 assert.match(html, /video\.addEventListener\(['"]pause['"]/i, 'Playback pause handler must exist');
+assert.match(html, /side-fullscreen-toggle[\\s\\S]*?btn-fullscreen/, 'Dedicated app fullscreen control must be wired');
+assert.match(html, /side-landscape-toggle[\\s\\S]*?orientation\.lock\(['"]landscape['"]\)/, 'Landscape control must request landscape orientation');
+assert.match(html, /href=["']assets\\/icon\\.svg["']/, 'Branded web app icon must be linked');
 assert.match(html, /ceilingStripLights\.forEach\(strip => \{ strip\.visible = !cinemaPlayingMode; \}\)/, 'Ceiling strips must switch off during playback');
 assert.doesNotMatch(html, /ytCinemaLauncher|ytCinemaPanel|youtube-nocookie\.com/i, 'Removed YouTube launcher must stay removed');
 assert.doesNotMatch(html, /frontCarpetMesh|carpetEdgeMeshes|Rich crimson carpet runner/i, 'Removed front carpet must stay removed');
 
-console.log('PASS: HTML structure, required controls, inline JavaScript syntax, playback handlers, ceiling lighting, and requested removals.');
+console.log('PASS: HTML structure, cinema controls, branded icon, inline JavaScript syntax, playback handlers, ceiling lighting, and requested removals.');
