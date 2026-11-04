@@ -1256,7 +1256,12 @@ header > div { min-width: 0; }
                 const x = pos.getX(i);
                 const normalizedX = x / (width / 2);
                 const zOffset = sagitta * normalizedX * normalizedX;
-                pos.setZ(i, Math.abs(curvatureVal) < 0.005 ? 0 : curveSign * zOffset);
+                // Fixed phone-style side wrap: only the outer 20% of each edge bends
+                // gently toward the audience, independently of the main IMAX bow.
+                const edgeProgress = THREE.MathUtils.clamp((Math.abs(normalizedX) - 0.80) / 0.20, 0, 1);
+                const edgeSmooth = edgeProgress * edgeProgress * (3 - 2 * edgeProgress);
+                const fixedSideEdgeCurl = 0.72 * edgeSmooth;
+                pos.setZ(i, (Math.abs(curvatureVal) < 0.005 ? 0 : curveSign * zOffset) + fixedSideEdgeCurl);
             }
             geometry.computeVertexNormals();
             geometry.attributes.position.needsUpdate = true;
@@ -1311,7 +1316,13 @@ header > div { min-width: 0; }
                 const y = pos.getY(i);
                 const normalizedX = THREE.MathUtils.clamp(x / (width / 2), -1, 1);
                 const normalizedY = THREE.MathUtils.clamp(y / (height / 2), -1, 1);
-                const baseZ = Math.abs(state.curvature) < 0.005 ? 0 : curveSign * sagitta * normalizedX * normalizedX;
+                const baseCurveZ = Math.abs(state.curvature) < 0.005 ? 0 : curveSign * sagitta * normalizedX * normalizedX;
+                // Keep a fixed, subtle phone-display-style curl on both vertical edges.
+                // The smooth ramp avoids a visible crease and leaves the central 80% untouched.
+                const edgeProgress = THREE.MathUtils.clamp((Math.abs(normalizedX) - 0.80) / 0.20, 0, 1);
+                const edgeSmooth = edgeProgress * edgeProgress * (3 - 2 * edgeProgress);
+                const fixedSideEdgeCurl = 0.72 * edgeSmooth;
+                const baseZ = baseCurveZ + fixedSideEdgeCurl;
                 let depthVal = 0;
 
                 if (state.depthMode === 'parallax') {
