@@ -1,0 +1,16 @@
+{
+  "name": "imax-3d-simulator-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android packaging and validation for the IMAX 3D Simulator web app",
+  "scripts": {
+    "test": "node scripts/smoke-test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0"
+  }
+}
