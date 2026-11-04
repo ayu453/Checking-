@@ -18,7 +18,6 @@ for (const id of [
   'controls-panel',
   'player-bar',
   'seat-grid',
-  'side-fullscreen-toggle',
   'side-landscape-toggle',
   'side-fit-toggle'
 ]) {
@@ -36,7 +35,8 @@ assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be pre
 
 assert.match(html, /video\.addEventListener\(['"]playing['"]/i, 'Playback start handler must exist');
 assert.match(html, /video\.addEventListener\(['"]pause['"]/i, 'Playback pause handler must exist');
-assert.match(html, /side-fullscreen-toggle[\s\S]*?btn-fullscreen/, 'Dedicated app fullscreen control must be wired');
+assert.match(html, /id="btn-fullscreen"/, 'Original main-toolbar fullscreen control must remain');
+assert.doesNotMatch(html, /side-fullscreen-toggle/, 'Duplicate side fullscreen control must not exist');
 assert.match(html, /side-landscape-toggle[\s\S]*?orientationPlugin\.lock\(\{ orientation: 'landscape' \}\)/, 'Landscape control must use native orientation plugin');
 assert.match(html, /screen\.orientation\.lock\(['"]landscape['"]\)/, 'Landscape control must use browser orientation lock');
 assert.doesNotMatch(html, /rotate-landscape-fallback|rotate\(90deg\)/, 'Landscape must not use fake CSS rotation');
