@@ -1,0 +1,6 @@
+{
+  "appId": "com.ayu453.imaxsimulator",
+  "appName": "IMAX 3D Simulator",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
