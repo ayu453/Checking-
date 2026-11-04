@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "IMAX 3D Simulator",
+  "short_name": "IMAX Cinema",
+  "description": "An immersive 3D virtual IMAX and ScreenX cinema simulator.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050508",
+  "theme_color": "#08090d",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
