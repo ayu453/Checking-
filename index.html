@@ -999,6 +999,27 @@ header > div { min-width: 0; }
                     scene.add(sconceLight);
                 }
 
+                // Cinematic framed movie-art panels on the side walls, like the reference auditorium.
+                for (const posterZ of [5.0, 17.0]) {
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.24, 4.8, 3.15), metal);
+                    frame.position.set(side * 25.34, 7.2, posterZ);
+                    scene.add(frame);
+                    const posterBack = new THREE.Mesh(new THREE.BoxGeometry(0.08, 4.48, 2.83),
+                        new THREE.MeshStandardMaterial({ color: 0x090b12, roughness: 0.82 }));
+                    posterBack.position.set(side * 25.18, 7.2, posterZ);
+                    scene.add(posterBack);
+                    const posterArt = new THREE.Mesh(new THREE.BoxGeometry(0.035, 3.95, 2.42),
+                        new THREE.MeshStandardMaterial({ color: posterZ < 10 ? 0x24324b : 0x42202a, roughness: 0.75, emissive: 0x100810 }));
+                    posterArt.position.set(side * 25.12, 7.28, posterZ);
+                    scene.add(posterArt);
+                    const posterTitle = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.12, 1.45), redGlow);
+                    posterTitle.position.set(side * 25.08, 5.48, posterZ);
+                    scene.add(posterTitle);
+                    const posterGlow = new THREE.PointLight(0xff8b9d, 0.12, 4, 2);
+                    posterGlow.position.set(side * 24.7, 7.2, posterZ);
+                    scene.add(posterGlow);
+                }
+
                 // Flush surround speakers, kept within the wall plane and outside the screen wings.
                 for (const z of [2.5, 9.5, 16.5, 23.5]) {
                     const speaker = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.15, 0.82), black);
@@ -1030,47 +1051,67 @@ header > div { min-width: 0; }
             rearSign.position.set(0, 13.4, 25.48);
             scene.add(rearSign);
 
-            // Sculpted ceiling: dark coffered panels, longitudinal ribs and continuous red cove lines.
+            // Luxury cinema ceiling: deep black coffers, a star-speckled galaxy inset and continuous red cove lighting.
             const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth),
-                new THREE.MeshStandardMaterial({ color: 0x090a0e, roughness: 0.95, metalness: 0.06, side: THREE.DoubleSide }));
+                new THREE.MeshStandardMaterial({ color: 0x08090d, roughness: 0.96, metalness: 0.08, side: THREE.DoubleSide }));
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.set(0, 15, roomCenterZ);
             scene.add(ceiling);
-            const ceilingField = new THREE.MeshStandardMaterial({ color: 0x17141a, roughness: 0.78, metalness: 0.18 });
-            const ceilingRecess = new THREE.MeshStandardMaterial({ color: 0x07080b, roughness: 0.92, metalness: 0.08 });
+            const ceilingField = new THREE.MeshStandardMaterial({ color: 0x20151d, roughness: 0.72, metalness: 0.22 });
+            const ceilingRecess = new THREE.MeshStandardMaterial({ color: 0x03050c, roughness: 0.92, metalness: 0.12 });
             for (let z = -0.5; z <= 24; z += 5.0) {
-                const coffer = new THREE.Mesh(new THREE.BoxGeometry(43.5, 0.22, 3.9), ceilingField);
+                const coffer = new THREE.Mesh(new THREE.BoxGeometry(44, 0.24, 4.0), ceilingField);
                 coffer.position.set(0, 14.82, z);
                 scene.add(coffer);
-                const recess = new THREE.Mesh(new THREE.BoxGeometry(39.5, 0.08, 2.85), ceilingRecess);
-                recess.position.set(0, 14.68, z);
+                const recess = new THREE.Mesh(new THREE.BoxGeometry(39.5, 0.08, 2.9), ceilingRecess);
+                recess.position.set(0, 14.66, z);
                 scene.add(recess);
                 for (const x of [-20.9, 20.9]) {
-                    const border = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.045, 3.45), redGlow);
-                    border.position.set(x, 14.62, z);
+                    const border = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 3.55), redGlow);
+                    border.position.set(x, 14.59, z);
                     scene.add(border);
                 }
             }
-            for (const x of [-22.2, -15, 0, 15, 22.2]) {
-                const rib = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.34, 31), metal);
-                rib.position.set(x, 14.68, 11.5);
+            // Central galaxy panel: subtle blue-black night-sky finish with tiny fixed star lights.
+            const galaxyPanel = new THREE.Mesh(new THREE.BoxGeometry(23.5, 0.10, 28.5), ceilingRecess);
+            galaxyPanel.position.set(0, 14.54, 11.5);
+            scene.add(galaxyPanel);
+            const starMat = new THREE.MeshBasicMaterial({ color: 0x9eb9e8, toneMapped: false });
+            const starSoftMat = new THREE.MeshBasicMaterial({ color: 0x526d9e, toneMapped: false });
+            for (let i = 0; i < 115; i++) {
+                const x = (((i * 37) % 223) / 223 - 0.5) * 22.2;
+                const z = 0.5 + ((i * 61) % 109) / 109 * 22;
+                const radius = i % 9 === 0 ? 0.075 : 0.035;
+                const star = new THREE.Mesh(new THREE.SphereGeometry(radius, 6, 5), i % 4 === 0 ? starMat : starSoftMat);
+                star.position.set(x, 14.43, z);
+                scene.add(star);
+            }
+            // Architectural ribs and red perimeter cove, matching the reference image's layered ceiling.
+            for (const x of [-22.2, -15, 15, 22.2]) {
+                const rib = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.38, 31), metal);
+                rib.position.set(x, 14.66, 11.5);
                 scene.add(rib);
             }
             for (const x of [-24.1, 24.1]) {
-                const cove = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 30), redGlow);
-                cove.position.set(x, 14.48, 11.5);
+                const cove = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 31), redGlow);
+                cove.position.set(x, 14.43, 11.5);
                 scene.add(cove);
             }
+            for (const z of [-3.2, 26.8]) {
+                const crossCove = new THREE.Mesh(new THREE.BoxGeometry(48.2, 0.09, 0.16), redGlow);
+                crossCove.position.set(0, 14.43, z);
+                scene.add(crossCove);
+            }
 
-            // Recessed ceiling downlights: warm dim pools, not a bright flat office ceiling.
-            const fixtureMat = new THREE.MeshBasicMaterial({ color: 0xc58b9a, toneMapped: false });
-            for (const x of [-17, -8.5, 8.5, 17]) {
+            // Warm recessed pin lights stay gentle; they never wash out the screen.
+            const fixtureMat = new THREE.MeshBasicMaterial({ color: 0xe0b9a9, toneMapped: false });
+            for (const x of [-19, -12, -5, 5, 12, 19]) {
                 for (const z of [1.5, 11.5, 21.5]) {
-                    const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.055, 16), fixtureMat);
-                    fixture.position.set(x, 14.52, z);
+                    const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.055, 16), fixtureMat);
+                    fixture.position.set(x, 14.48, z);
                     scene.add(fixture);
-                    const light = new THREE.PointLight(0x9e5267, 0.12, 5, 2);
-                    light.position.set(x, 13.8, z);
+                    const light = new THREE.PointLight(0xb87978, 0.10, 4.5, 2);
+                    light.position.set(x, 13.82, z);
                     scene.add(light);
                 }
             }
@@ -1487,15 +1528,16 @@ header > div { min-width: 0; }
         // Bright premium auditorium before playback; immersive dark mode during playback.
         function setCinemaLighting(isPlaying) {
             cinemaPlayingMode = !!isPlaying;
-            if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.42 : 1.05;
-            if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.14 : 0.78;
-            if (spotLight) spotLight.intensity = cinemaPlayingMode ? Math.max(0.28, state.lightIntensity * 0.85) : 0.55;
-            if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode ? 0.14 : 0.32;
-            if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode ? 0.14 : 0.32;
+            // During playback retain the premium low-level red aisle/cove glow—never black out the room.
+            if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.30 : 1.05;
+            if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.08 : 0.78;
+            if (spotLight) spotLight.intensity = cinemaPlayingMode ? Math.max(0.22, state.lightIntensity * 0.68) : 0.55;
+            if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode ? 0.20 : 0.32;
+            if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode ? 0.20 : 0.32;
             aisleLights.forEach(light => {
-                if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xb77d4d : 0xffb16b);
+                if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xff3859 : 0xff294f);
             });
-            if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.92 : 1.08;
+            if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.96 : 1.08;
         }
 
         function initVideoPlayer() {
