@@ -941,6 +941,23 @@ header > div { min-width: 0; }
             scene.add(backWallMesh);
             updateBackWallCurvature();
 
+            // Subtle continuous crimson LED strip behind the screen, following the curved front wall.
+            const screenBacklightPoints = [];
+            for (let i = 0; i <= 48; i++) {
+                const x = -15 + (30 * i / 48);
+                const nx = x / 26;
+                screenBacklightPoints.push(new THREE.Vector3(x, -3.15, -3.15 * (1 - nx * nx) - 0.18));
+            }
+            const screenBacklightCurve = new THREE.CatmullRomCurve3(screenBacklightPoints);
+            const screenBacklight = new THREE.Mesh(
+                new THREE.TubeGeometry(screenBacklightCurve, 96, 0.075, 8, false),
+                new THREE.MeshBasicMaterial({ color: 0xb51635, toneMapped: false })
+            );
+            scene.add(screenBacklight);
+            const screenBacklightGlow = new THREE.PointLight(0x9f102c, 0.42, 18, 2);
+            screenBacklightGlow.position.set(0, -2.9, -2.9);
+            scene.add(screenBacklightGlow);
+
             // Deep charcoal carpet floor with a subtle central runner and aisle guide strips.
             const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth),
                 new THREE.MeshStandardMaterial({ color: 0x111015, roughness: 1, metalness: 0 }));
@@ -953,6 +970,23 @@ header > div { min-width: 0; }
             runner.rotation.x = -Math.PI / 2;
             runner.position.set(0, -4.985, 23);
             scene.add(runner);
+
+            // Rich crimson carpet runner from the front seating row toward the screen.
+            const frontCarpet = new THREE.Mesh(
+                new THREE.PlaneGeometry(6.2, 9.2),
+                new THREE.MeshStandardMaterial({ color: 0x650d20, roughness: 1, metalness: 0.02 })
+            );
+            frontCarpet.rotation.x = -Math.PI / 2;
+            frontCarpet.position.set(0, -4.955, 4.45);
+            frontCarpet.receiveShadow = true;
+            scene.add(frontCarpet);
+            const carpetEdgeMat = new THREE.MeshBasicMaterial({ color: 0x9f1732, toneMapped: false });
+            for (const x of [-3.05, 3.05]) {
+                const carpetEdge = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.025, 9.15), carpetEdgeMat);
+                carpetEdge.position.set(x, -4.925, 4.45);
+                scene.add(carpetEdge);
+            }
+
             for (const x of [-7.15, 7.15]) {
                 const line = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.025, 48), softRed);
                 line.position.set(x, -4.94, 23);
