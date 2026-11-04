@@ -1117,10 +1117,11 @@ header > div { min-width: 0; }
                     aisleLights.push(marker);
                 }
             }
-            wallGlowLeft = new THREE.PointLight(0x9b2946, 0.22, 18, 2);
-            wallGlowRight = new THREE.PointLight(0x9b2946, 0.22, 18, 2);
-            wallGlowLeft.position.set(-9, -4.25, 24);
-            wallGlowRight.position.set(9, -4.25, 24);
+            wallGlowLeft = new THREE.PointLight(0x9b2946, 0.32, 30, 2);
+            wallGlowRight = new THREE.PointLight(0x9b2946, 0.32, 30, 2);
+            // Lift the soft red wash onto the side walls so it remains visible during playback.
+            wallGlowLeft.position.set(-20.5, 3.0, 13);
+            wallGlowRight.position.set(20.5, 3.0, 13);
             scene.add(wallGlowLeft, wallGlowRight);
 
             createTheaterSeats();
@@ -1509,16 +1510,16 @@ header > div { min-width: 0; }
             // On pause/stop, restore the full auditorium lighting independently of slider values.
             const ambilightScale = state.themeMode === 'glow' ? 2.2 : 1.2;
             const wallScale = state.themeMode === 'glow' ? 3.15 : 0.92;
-            if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.24 : 0.72;
-            if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.035 : 0.38;
+            if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.30 : 0.72;
+            if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.065 : 0.38;
             if (spotLight) spotLight.intensity = cinemaPlayingMode
-                ? state.lightIntensity * ambilightScale
+                ? Math.max(0.22, state.lightIntensity * ambilightScale)
                 : 0.48;
             if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode
-                ? state.sideWallIntensity * wallScale
+                ? Math.max(0.24, state.sideWallIntensity * wallScale)
                 : 0.28;
             if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode
-                ? state.sideWallIntensity * wallScale
+                ? Math.max(0.24, state.sideWallIntensity * wallScale)
                 : 0.28;
             aisleLights.forEach(light => {
                 if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xb51a35 : 0x761126);
@@ -1794,15 +1795,14 @@ header > div { min-width: 0; }
 
                 const targetColor = new THREE.Color(`rgb(${r}, ${g}, ${b})`);
                 spotLight.color.lerp(targetColor, 0.1);
-                spotLight.intensity = state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2);
+                spotLight.intensity = Math.max(0.22, state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2));
                 if (wallGlowLeft) {
-                    wallGlowLeft.color.lerp(targetColor, 0.08);
-                    wallGlowRight.color.lerp(targetColor, 0.08);
+                    // Keep the auditorium's premium burgundy wall wash stable; only the screen ambilight follows the movie.
                     const wallIntensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92);
                     wallGlowLeft.intensity = wallIntensity;
                     wallGlowRight.intensity = wallIntensity;
                 }
-                aisleLights.forEach(light => { light.material.color.lerp(targetColor, 0.025); });
+                aisleLights.forEach(light => { light.material.color.setHex(0xb51a35); });
 
             } catch (e) { /* CORS fallback */ }
         }
@@ -2272,7 +2272,7 @@ header > div { min-width: 0; }
                 state.lightIntensity = parseFloat(e.target.value);
                 document.getElementById('val-light').textContent = `${Math.round(state.lightIntensity * 100)}%`;
                 if (cinemaPlayingMode && spotLight) {
-                    spotLight.intensity = state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2);
+                    spotLight.intensity = Math.max(0.22, state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2));
                 }
                 saveSettings();
             });
@@ -2362,7 +2362,7 @@ header > div { min-width: 0; }
                 state.sideWallIntensity = parseFloat(e.target.value);
                 document.getElementById('val-side-light').textContent = `${Math.round(state.sideWallIntensity * 100)}%`;
                 if (cinemaPlayingMode && wallGlowLeft) {
-                    wallGlowLeft.intensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92);
+                    wallGlowLeft.intensity = Math.max(0.24, state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92));
                     wallGlowRight.intensity = wallGlowLeft.intensity;
                 }
                 saveSettings();
