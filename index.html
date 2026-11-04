@@ -790,6 +790,8 @@ header > div { min-width: 0; }
         let videoTexture, ambientLight, spotLight, overheadLight;
         let cinemaPlayingMode = false;
         let rgbStripLights = []; // Decorative ceiling RGB strips, switched off during movie playback.
+        let screenBacklightMesh = null, screenBacklightGlowLight = null;
+        let frontCarpetMesh = null, carpetEdgeMeshes = [];
         let theaterRoom, wallMaterial, floorMaterial;
         let preFitCamera = null;
 
@@ -949,14 +951,14 @@ header > div { min-width: 0; }
                 screenBacklightPoints.push(new THREE.Vector3(x, -3.15, -3.15 * (1 - nx * nx) - 0.18));
             }
             const screenBacklightCurve = new THREE.CatmullRomCurve3(screenBacklightPoints);
-            const screenBacklight = new THREE.Mesh(
+            screenBacklightMesh = new THREE.Mesh(
                 new THREE.TubeGeometry(screenBacklightCurve, 96, 0.075, 8, false),
                 new THREE.MeshBasicMaterial({ color: 0xb51635, toneMapped: false })
             );
-            scene.add(screenBacklight);
-            const screenBacklightGlow = new THREE.PointLight(0x9f102c, 0.42, 18, 2);
-            screenBacklightGlow.position.set(0, -2.9, -2.9);
-            scene.add(screenBacklightGlow);
+            scene.add(screenBacklightMesh);
+            screenBacklightGlowLight = new THREE.PointLight(0x9f102c, 0.42, 18, 2);
+            screenBacklightGlowLight.position.set(0, -2.9, -2.9);
+            scene.add(screenBacklightGlowLight);
 
             // Deep charcoal carpet floor with a subtle central runner and aisle guide strips.
             const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth),
@@ -972,18 +974,20 @@ header > div { min-width: 0; }
             scene.add(runner);
 
             // Rich crimson carpet runner from the front seating row toward the screen.
-            const frontCarpet = new THREE.Mesh(
+            frontCarpetMesh = new THREE.Mesh(
                 new THREE.PlaneGeometry(6.2, 9.2),
                 new THREE.MeshStandardMaterial({ color: 0x650d20, roughness: 1, metalness: 0.02 })
             );
-            frontCarpet.rotation.x = -Math.PI / 2;
-            frontCarpet.position.set(0, -4.955, 4.45);
-            frontCarpet.receiveShadow = true;
-            scene.add(frontCarpet);
+            frontCarpetMesh.rotation.x = -Math.PI / 2;
+            frontCarpetMesh.position.set(0, -4.955, 4.45);
+            frontCarpetMesh.receiveShadow = true;
+            scene.add(frontCarpetMesh);
             const carpetEdgeMat = new THREE.MeshBasicMaterial({ color: 0x9f1732, toneMapped: false });
+            carpetEdgeMeshes = [];
             for (const x of [-3.05, 3.05]) {
-                const carpetEdge = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.025, 9.15), carpetEdgeMat);
+                const carpetEdge = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.025, 9.15), carpetEdgeMat.clone());
                 carpetEdge.position.set(x, -4.925, 4.45);
+                carpetEdgeMeshes.push(carpetEdge);
                 scene.add(carpetEdge);
             }
 
@@ -1562,6 +1566,11 @@ header > div { min-width: 0; }
             aisleLights.forEach(light => {
                 if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xb51a35 : 0x761126);
             });
+            // Darken the screen-back LED and front carpet runner during playback; restore on pause/end.
+            if (screenBacklightMesh) screenBacklightMesh.visible = !cinemaPlayingMode;
+            if (screenBacklightGlowLight) screenBacklightGlowLight.intensity = cinemaPlayingMode ? 0 : 0.42;
+            if (frontCarpetMesh && frontCarpetMesh.material) frontCarpetMesh.material.color.setHex(cinemaPlayingMode ? 0x160b10 : 0x650d20);
+            carpetEdgeMeshes.forEach(edge => { edge.visible = !cinemaPlayingMode; });
             // Turn off the decorative ceiling RGB strip during playback; restore it on pause/end.
             rgbStripLights.forEach(strip => { strip.visible = !cinemaPlayingMode; });
             if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.92 : 1.08;
