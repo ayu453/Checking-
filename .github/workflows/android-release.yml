@@ -1,0 +1,84 @@
+name: Android CI and Release Artifacts
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-build:
+    name: Validate and build Android APK/AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 SDK
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install Capacitor dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run web app smoke tests
+        run: npm test
+
+      - name: Prepare bundled web app
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+          test -s www/index.html
+
+      - name: Generate Capacitor Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Enforce Google Play target API 36
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("android/variables.gradle")
+          s = p.read_text()
+          s, n1 = re.subn(r"targetSdkVersion\s*=\s*\d+", "targetSdkVersion = 36", s, count=1)
+          s, n2 = re.subn(r"compileSdkVersion\s*=\s*\d+", "compileSdkVersion = 36", s, count=1)
+          if not n1 or not n2:
+              raise SystemExit("Could not locate Capacitor Android SDK version settings")
+          p.write_text(s)
+          PY
+          grep -nE 'compileSdkVersion|targetSdkVersion' android/variables.gradle
+
+      - name: Run Android unit tests, lint, and build APK/AAB
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug bundleRelease
+          cp app/build/outputs/bundle/release/app-release.aab app/build/outputs/bundle/release/app-release-unsigned.aab
+
+      - name: Upload Android APK and AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: imax-android-build-\${{ github.run_number }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release-unsigned.aab
+          if-no-files-found: error
+          retention-days: 14
