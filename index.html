@@ -905,14 +905,14 @@ header > div { min-width: 0; }
         function initTheaterEnvironment() {
             // Complete premium IMAX auditorium shell: oxblood, charcoal, brushed metal and low red light.
             // The existing IMAX/ScreenX screen and the 3 x 5 seat layout are intentionally untouched.
-            ambientLight = new THREE.AmbientLight(0x9b8790, 0.72);
+            ambientLight = new THREE.AmbientLight(0x777777, 0.72);
             scene.add(ambientLight);
 
-            spotLight = new THREE.PointLight(0xb52b4a, 0.48, 38, 1.7);
+            spotLight = new THREE.PointLight(0x8f142d, 0.48, 38, 1.7);
             spotLight.position.set(0, 5, 3);
             scene.add(spotLight);
 
-            overheadLight = new THREE.DirectionalLight(0xd7c2c6, 0.38);
+            overheadLight = new THREE.DirectionalLight(0xbdb8b6, 0.38);
             overheadLight.position.set(0, 22, 10);
             scene.add(overheadLight);
 
@@ -920,12 +920,12 @@ header > div { min-width: 0; }
             floorMaterial = new THREE.MeshStandardMaterial({ color: 0x0c0c10, roughness: 0.96, metalness: 0.02 });
 
             const roomWidth = 52, roomHeight = 20, roomDepth = 62, roomCenterZ = 23.0;
-            const wallDark = new THREE.MeshStandardMaterial({ color: 0x21151c, roughness: 0.88, metalness: 0.12, side: THREE.DoubleSide });
+            const wallDark = new THREE.MeshStandardMaterial({ color: 0x140d11, roughness: 0.88, metalness: 0.12, side: THREE.DoubleSide });
             const wallInset = new THREE.MeshStandardMaterial({ color: 0x100e13, roughness: 0.94, metalness: 0.04 });
-            const burgundy = new THREE.MeshStandardMaterial({ color: 0x4b1425, roughness: 0.62, metalness: 0.16 });
+            const burgundy = new THREE.MeshStandardMaterial({ color: 0x300914, roughness: 0.62, metalness: 0.16 });
             const metal = new THREE.MeshStandardMaterial({ color: 0x555057, roughness: 0.38, metalness: 0.72 });
-            const redGlow = new THREE.MeshBasicMaterial({ color: 0xff244f, toneMapped: false });
-            const softRed = new THREE.MeshBasicMaterial({ color: 0xa91d3b, toneMapped: false });
+            const redGlow = new THREE.MeshBasicMaterial({ color: 0xa90d2b, toneMapped: false });
+            const softRed = new THREE.MeshBasicMaterial({ color: 0x741126, toneMapped: false });
             const black = new THREE.MeshStandardMaterial({ color: 0x090a0e, roughness: 0.86, metalness: 0.12 });
 
             // Curved front wall remains behind the screen frame; keep its existing curve driver.
@@ -1006,7 +1006,7 @@ header > div { min-width: 0; }
                     posterBack.position.set(side * 25.18, 7.2, posterZ);
                     scene.add(posterBack);
                     const posterArt = new THREE.Mesh(new THREE.BoxGeometry(0.035, 3.95, 2.42),
-                        new THREE.MeshStandardMaterial({ color: posterZ < 10 ? 0x24324b : 0x42202a, roughness: 0.75, emissive: 0x100810 }));
+                        new THREE.MeshStandardMaterial({ color: posterZ < 10 ? 0x17202a : 0x241016, roughness: 0.75, emissive: 0x080304 }));
                     posterArt.position.set(side * 25.12, 7.28, posterZ);
                     scene.add(posterArt);
                     const posterTitle = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.12, 1.45), redGlow);
@@ -1051,7 +1051,7 @@ header > div { min-width: 0; }
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.set(0, 15, roomCenterZ);
             scene.add(ceiling);
-            const ceilingField = new THREE.MeshStandardMaterial({ color: 0x20151d, roughness: 0.72, metalness: 0.22 });
+            const ceilingField = new THREE.MeshStandardMaterial({ color: 0x100c10, roughness: 0.72, metalness: 0.22 });
             const ceilingRecess = new THREE.MeshStandardMaterial({ color: 0x03050c, roughness: 0.92, metalness: 0.12 });
             for (let z = -0.5; z <= 24; z += 5.0) {
                 const coffer = new THREE.Mesh(new THREE.BoxGeometry(44, 0.24, 4.0), ceilingField);
@@ -1183,8 +1183,8 @@ header > div { min-width: 0; }
             // Plush burgundy leather recliners inspired by the reference auditorium.
             // Preserve the exact 3 rows x 5 seats, spacing, riser heights and seat coordinates.
             const upholstery = new THREE.MeshStandardMaterial({ color: 0x3b0817, roughness: 0.30, metalness: 0.025 });
-            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x681327, roughness: 0.40, metalness: 0.02 });
-            const pipingMat = new THREE.MeshStandardMaterial({ color: 0xa83b52, roughness: 0.48, metalness: 0.02 });
+            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x430b19, roughness: 0.40, metalness: 0.02 });
+            const pipingMat = new THREE.MeshStandardMaterial({ color: 0x641329, roughness: 0.48, metalness: 0.02 });
             const trimMat = new THREE.MeshStandardMaterial({ color: 0x090a0d, roughness: 0.42, metalness: 0.32 });
             const cupMat = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.20, metalness: 0.68 });
             const riserMat = new THREE.MeshStandardMaterial({ color: 0x17151a, roughness: 0.96, metalness: 0.03 });
@@ -1512,7 +1512,7 @@ header > div { min-width: 0; }
             if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode ? 0.12 : 0.28;
             if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode ? 0.12 : 0.28;
             aisleLights.forEach(light => {
-                if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xff526d : 0xff294f);
+                if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xb51a35 : 0x761126);
             });
             if (renderer) renderer.toneMappingExposure = cinemaPlayingMode ? 0.92 : 1.08;
         }
