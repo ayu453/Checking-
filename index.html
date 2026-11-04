@@ -2703,5 +2703,32 @@ body.screen-controls-idle #seat-picker { visibility:hidden !important; }
 })();
 </script>
 
+
+<style>
+#ytCinemaLauncher{position:fixed;right:18px;bottom:92px;z-index:10020;border:1px solid rgba(220,35,65,.65);border-radius:999px;background:linear-gradient(135deg,#6e0d20,#180b10);color:#fff;padding:12px 17px;font:600 13px system-ui;box-shadow:0 0 18px rgba(190,20,55,.24);cursor:pointer}
+#ytCinemaPanel{display:none;position:fixed;inset:5vh 4vw;z-index:10030;background:#08090c;border:1px solid #571326;border-radius:14px;box-shadow:0 0 35px #000;overflow:hidden}
+#ytCinemaPanel.open{display:flex;flex-direction:column}
+#ytCinemaPanel header{display:flex;gap:10px;align-items:center;padding:10px;background:#160b10;color:#fff;font:14px system-ui}
+#ytCinemaSearch{flex:1;min-width:0;background:#090a0d;border:1px solid #663044;border-radius:8px;padding:10px;color:white}
+#ytCinemaGo,#ytCinemaClose{background:#741126;color:white;border:0;border-radius:8px;padding:10px 13px;font-weight:600}
+#ytCinemaFrame{border:0;width:100%;height:100%;flex:1;background:#000}
+@media(max-width:600px){#ytCinemaPanel{inset:2vh 2vw}#ytCinemaLauncher{right:12px;bottom:78px}}
+</style>
+<button id="ytCinemaLauncher" type="button" aria-label="Open YouTube Cinema">▶ YouTube</button>
+<section id="ytCinemaPanel" aria-label="YouTube Cinema">
+<header><strong>YouTube Cinema</strong><input id="ytCinemaSearch" type="search" placeholder="Search YouTube videos…" autocomplete="off"><button id="ytCinemaGo" type="button">Search</button><button id="ytCinemaClose" type="button">Close</button></header>
+<iframe id="ytCinemaFrame" title="YouTube player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+</section>
+<script>
+(()=>{
+ const launch=document.getElementById('ytCinemaLauncher'),panel=document.getElementById('ytCinemaPanel'),input=document.getElementById('ytCinemaSearch'),frame=document.getElementById('ytCinemaFrame');
+ if(!launch||!panel||!input||!frame)return;
+ function search(){const q=input.value.trim();if(!q)return;frame.src='https://www.youtube.com/embed?listType=search&list='+encodeURIComponent(q)+'&autoplay=0';}
+ launch.addEventListener('click',()=>{panel.classList.add('open');input.focus();});
+ document.getElementById('ytCinemaGo').addEventListener('click',search);
+ input.addEventListener('keydown',e=>{if(e.key==='Enter')search();});
+ document.getElementById('ytCinemaClose').addEventListener('click',()=>{panel.classList.remove('open');frame.src='about:blank';});
+})();
+</script>
 </body>
 </html>
