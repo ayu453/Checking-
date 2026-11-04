@@ -46,12 +46,17 @@ jobs:
         run: |
           mkdir -p www
           cp index.html www/index.html
+          mkdir -p www/assets
+          cp assets/icon.svg www/assets/icon.svg
           test -s www/index.html
+          test -s www/assets/icon.svg
 
       - name: Generate Capacitor Android project
         run: |
           npx cap add android
           npx cap sync android
+          python3 -m pip install --quiet pillow
+          python3 scripts/generate-android-icon.py
 
       - name: Enforce Google Play target API 36
         run: |
