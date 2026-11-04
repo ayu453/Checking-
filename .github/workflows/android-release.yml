@@ -76,7 +76,7 @@ jobs:
       - name: Upload Android APK and AAB
         uses: actions/upload-artifact@v4
         with:
-          name: imax-android-build-\${{ github.run_number }}
+          name: imax-android-build
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/bundle/release/app-release-unsigned.aab
