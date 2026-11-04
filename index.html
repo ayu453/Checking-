@@ -1505,12 +1505,21 @@ header > div { min-width: 0; }
         // Bright premium auditorium before playback; immersive dark mode during playback.
         function setCinemaLighting(isPlaying) {
             cinemaPlayingMode = !!isPlaying;
-            // Keep the auditorium visible with a restrained red cove/aisle glow during films.
+            // During playback, both user sliders control the actual ambilight and side-wall glow.
+            // On pause/stop, restore the full auditorium lighting independently of slider values.
+            const ambilightScale = state.themeMode === 'glow' ? 2.2 : 1.2;
+            const wallScale = state.themeMode === 'glow' ? 3.15 : 0.92;
             if (ambientLight) ambientLight.intensity = cinemaPlayingMode ? 0.24 : 0.72;
             if (overheadLight) overheadLight.intensity = cinemaPlayingMode ? 0.035 : 0.38;
-            if (spotLight) spotLight.intensity = cinemaPlayingMode ? Math.max(0.12, state.lightIntensity * 0.34) : 0.48;
-            if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode ? 0.12 : 0.28;
-            if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode ? 0.12 : 0.28;
+            if (spotLight) spotLight.intensity = cinemaPlayingMode
+                ? state.lightIntensity * ambilightScale
+                : 0.48;
+            if (wallGlowLeft) wallGlowLeft.intensity = cinemaPlayingMode
+                ? state.sideWallIntensity * wallScale
+                : 0.28;
+            if (wallGlowRight) wallGlowRight.intensity = cinemaPlayingMode
+                ? state.sideWallIntensity * wallScale
+                : 0.28;
             aisleLights.forEach(light => {
                 if (light.material && light.material.color) light.material.color.setHex(cinemaPlayingMode ? 0xb51a35 : 0x761126);
             });
@@ -2262,6 +2271,9 @@ header > div { min-width: 0; }
             sliderLight.addEventListener('input', (e) => {
                 state.lightIntensity = parseFloat(e.target.value);
                 document.getElementById('val-light').textContent = `${Math.round(state.lightIntensity * 100)}%`;
+                if (cinemaPlayingMode && spotLight) {
+                    spotLight.intensity = state.lightIntensity * (state.themeMode === 'glow' ? 2.2 : 1.2);
+                }
                 saveSettings();
             });
 
@@ -2349,7 +2361,10 @@ header > div { min-width: 0; }
             document.getElementById('slider-side-light').addEventListener('input', (e) => {
                 state.sideWallIntensity = parseFloat(e.target.value);
                 document.getElementById('val-side-light').textContent = `${Math.round(state.sideWallIntensity * 100)}%`;
-                if (wallGlowLeft) { wallGlowLeft.intensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92); wallGlowRight.intensity = wallGlowLeft.intensity; }
+                if (cinemaPlayingMode && wallGlowLeft) {
+                    wallGlowLeft.intensity = state.sideWallIntensity * (state.themeMode === 'glow' ? 3.15 : 0.92);
+                    wallGlowRight.intensity = wallGlowLeft.intensity;
+                }
                 saveSettings();
             });
 
