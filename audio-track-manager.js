@@ -289,6 +289,7 @@
   });
 
   window.imaxAudioTrackManager = {
+    audioElement: audio,
     openTrackPicker() {
       setMenuOpen(true);
       inspectFile();
