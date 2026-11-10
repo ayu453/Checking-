@@ -126,7 +126,7 @@
       const code = await engine.ffprobe([
         '-v', 'error', '-show_entries',
         'stream=index,codec_type:stream_tags=language,title',
-        '-of', 'json', inputName
+        '-of', 'json', '-o', outputName, inputName
       ]);
       if (code !== 0) throw new Error('Could not inspect the uploaded media streams.');
       const raw = await engine.readFile(outputName).catch(() => null);
@@ -240,6 +240,7 @@
   });
   video.addEventListener('ended', () => { if (externalAudioActive && !video.loop) audio.pause(); });
   input.addEventListener('change', (event) => {
+    const previousInputName = inputName;
     selectedFile = event.target.files && event.target.files[0] || null;
     inputName = null;
     tracks = [];
@@ -248,7 +249,7 @@
     revokeAudioUrl();
     muted = video.muted;
     video.muted = false;
-    if (ffmpeg && inputName) { try { ffmpeg.deleteFile(inputName); } catch (_) {} }
+    if (ffmpeg && previousInputName) { try { ffmpeg.deleteFile(previousInputName); } catch (_) {} }
     setMessage(selectedFile ? 'Video loaded. Open Audio tracks to scan embedded streams.' : 'Upload a video to detect audio tracks.');
   });
   trigger.addEventListener('click', () => {
