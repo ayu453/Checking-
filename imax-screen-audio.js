@@ -28,8 +28,7 @@
     source.connect(splitter);
 
     // L/R: full level. Centre: dialogue is sent equally to both sides.
-    // LFE: subtle low-frequency support. Surrounds retain their side image
-    // with a small opposite-side bleed for ordinary stereo headphones/speakers.
+    // LFE: subtle low-frequency support. Left and right surrounds keep their side image.
     splitter.connect(channelGains[0], 0);
     channelGains[0].connect(merger, 0, 0);
     splitter.connect(channelGains[1], 1);
@@ -45,11 +44,9 @@
 
     splitter.connect(channelGains[4], 4);
     channelGains[4].connect(merger, 0, 0);
-    channelGains[4].connect(merger, 0, 1);
 
     splitter.connect(channelGains[5], 5);
     channelGains[5].connect(merger, 0, 1);
-    channelGains[5].connect(merger, 0, 0);
 
     merger.connect(master);
     master.connect(ctx.destination);
