@@ -93,7 +93,9 @@
         import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js')
       ]);
       const engine = new FFmpeg();
+      engine.__probeLogs = [];
       engine.on('log', ({ message }) => {
+        engine.__probeLogs.push(String(message || ''));
         if (/error/i.test(message)) console.warn('[IMAX audio]', message);
       });
       const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
@@ -134,22 +136,28 @@
         inputName = 'imax-source.' + ext;
         await engine.writeFile(inputName, await engine.__fetchFile(selectedFile));
       }
-      const outputName = 'imax-streams.json';
-      try { await engine.deleteFile(outputName); } catch (_) {}
-      const code = await engine.ffprobe([
-        '-v', 'error', '-show_entries',
-        'stream=index,codec_type:stream_tags=language,title',
-        '-of', 'json', inputName, '-o', outputName
+      // @ffmpeg/ffmpeg 0.12.10 has no ffprobe() API. Ask the FFmpeg
+      // CLI to inspect the input and stop immediately; its input header logs
+      // contain stream indexes and language metadata.
+      engine.__probeLogs.length = 0;
+      await engine.exec([
+        '-hide_banner', '-i', inputName, '-t', '0',
+        '-map', '0:a', '-c', 'copy', '-f', 'null', '-'
       ]);
-      if (code !== 0) throw new Error('Could not inspect the uploaded media streams.');
-      const raw = await engine.readFile(outputName).catch(() => null);
-      let probe;
-      if (raw) probe = JSON.parse(new TextDecoder().decode(raw));
-      else {
-        // Some ffmpeg.wasm builds do not create the named ffprobe output file.
-        throw new Error('The media probe did not return stream metadata.');
-      }
-      tracks = (probe.streams || []).filter((stream) => stream.codec_type === 'audio');
+      const streamLines = engine.__probeLogs.filter((line) => /Stream #0:\d+.*Audio:/i.test(line));
+      tracks = streamLines.map((line) => {
+        const indexMatch = line.match(/Stream #0:(\d+)/i);
+        const languageMatch = line.match(/\(([a-z]{2,3})\)/i);
+        const titleMatch = line.match(/\(title\s*:\s*([^)]*)\)/i);
+        return {
+          index: indexMatch ? Number(indexMatch[1]) : -1,
+          codec_type: 'audio',
+          tags: {
+            language: languageMatch ? languageMatch[1].toLowerCase() : 'und',
+            title: titleMatch ? titleMatch[1] : ''
+          }
+        };
+      }).filter((track) => track.index >= 0);
       if (!tracks.length) {
         setMessage('No embedded audio tracks were found in this video.');
         status('AUDIO TRACKS · NONE FOUND');
