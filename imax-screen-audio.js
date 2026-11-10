@@ -30,15 +30,6 @@
     // L/R: full level. Centre: dialogue is sent equally to both sides.
     // LFE: subtle low-frequency support. Surrounds retain their side image
     // with a small opposite-side bleed for ordinary stereo headphones/speakers.
-    const routes = [
-      [[0, 0, 1]],
-      [[1, 0, 1]],
-      [[2, 0, 0.707], [2, 0, 0]], // centre routes are wired below to both outputs
-      [[3, 0, 0.30]],
-      [[4, 0, 0.707], [4, 1, 0.16]],
-      [[5, 1, 0.707], [5, 0, 0.16]]
-    ];
-
     splitter.connect(channelGains[0], 0);
     channelGains[0].connect(merger, 0, 0);
     splitter.connect(channelGains[1], 1);
