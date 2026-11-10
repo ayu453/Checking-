@@ -423,15 +423,28 @@
         </div>
         <!-- Minimal player controls styled like the reference screenshot: only five buttons -->
         <div id="vlc-key-panel" class="reference-player-controls" aria-label="Video controls">
-            <button data-player-action="subtitles" title="Subtitles" aria-label="Subtitles"><i class="fa-solid fa-closed-captioning"></i></button>
+            <button data-player-action="audio" title="Audio tracks" aria-label="Audio tracks" aria-haspopup="dialog" aria-expanded="false"><i class="fa-solid fa-headphones"></i></button>
             <button data-player-action="repeat" title="Repeat video" aria-label="Repeat video"><i class="fa-solid fa-repeat"></i></button>
             <button data-player-action="play" class="reference-play" title="Play / Pause" aria-label="Play or pause"><i id="ref-play-icon" class="fa-solid fa-play"></i></button>
             <button data-player-action="fullscreen" title="Fullscreen" aria-label="Fullscreen"><i class="fa-solid fa-expand"></i></button>
             <button data-player-action="more" title="More options" aria-label="More options"><i class="fa-solid fa-ellipsis"></i></button>
+            <div id="audio-track-menu" class="audio-track-menu hidden" role="dialog" aria-label="Audio track selection">
+                <div class="audio-track-menu-heading"><span>Audio tracks</span><button type="button" id="audio-track-close" aria-label="Close audio tracks"><i class="fa-solid fa-xmark"></i></button></div>
+                <div id="audio-track-list" class="audio-track-list"><p class="audio-track-message">Upload a video to detect audio tracks.</p></div>
+            </div>
         </div>
     </div>
     <style>
-      .reference-player-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 1px;}
+      .reference-player-controls{display:flex;position:relative;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 1px;}
+      .audio-track-menu{position:absolute;z-index:80;right:0;bottom:52px;width:min(290px,calc(100vw - 28px));max-height:min(55vh,360px);overflow:auto;padding:12px;border:1px solid rgba(148,163,184,.28);border-radius:16px;background:rgba(5,10,22,.97);box-shadow:0 18px 55px rgba(0,0,0,.55);backdrop-filter:blur(18px);color:#f8fafc;}
+      .audio-track-menu.hidden{display:none;}
+      .audio-track-menu-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:12px;font-weight:700;letter-spacing:.04em;color:#e2e8f0;}
+      .audio-track-menu-heading button{width:28px;height:28px;border:0;border-radius:8px;background:rgba(148,163,184,.12);color:#cbd5e1;}
+      .audio-track-list{display:flex;flex-direction:column;gap:6px;}
+      .audio-track-option{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px 11px;border:1px solid rgba(148,163,184,.14);border-radius:10px;background:rgba(30,41,59,.65);color:#e2e8f0;text-align:left;font-size:12px;}
+      .audio-track-option[aria-pressed="true"]{border-color:rgba(34,211,238,.7);background:rgba(8,145,178,.2);color:#a5f3fc;}
+      .audio-track-option:disabled{opacity:.55;cursor:wait;}
+      .audio-track-message{padding:8px 4px;color:#94a3b8;font-size:11px;line-height:1.5;}
       .reference-player-controls button{width:42px;height:42px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:#f8fafc;font-size:21px;transition:background .15s,color .15s;}
       .reference-player-controls button:hover{background:rgba(255,255,255,.12);}
       .reference-player-controls .reference-play{width:58px;height:58px;border:3px solid #f8fafc;font-size:24px;background:rgba(10,15,25,.28);}
@@ -1666,15 +1679,13 @@ header > div { min-width: 0; }
             });
 
             btnMute.addEventListener('click', () => {
-                video.muted = !video.muted;
-                btnMute.innerHTML = video.muted ? 
-                    '<i class="fa-solid fa-volume-xmark text-red-400"></i>' : 
-                    '<i class="fa-solid fa-volume-high"></i>';
+                const muted = window.imaxAudioTrackManager ? window.imaxAudioTrackManager.toggleMute() : (video.muted = !video.muted);
+                btnMute.innerHTML = muted ? '<i class="fa-solid fa-volume-xmark text-red-400"></i>' : '<i class="fa-solid fa-volume-high"></i>';
             });
 
             const playerPanel = document.getElementById('vlc-key-panel');
             function seekBy(seconds) { if (Number.isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds)); }
-            function setVolume(value) { video.volume = Math.max(0, Math.min(1, value)); if (video.volume > 0) video.muted = false; }
+            function setVolume(value) { const next = Math.max(0, Math.min(1, value)); if (window.imaxAudioTrackManager) window.imaxAudioTrackManager.setVolume(next); else { video.volume = next; if (video.volume > 0) video.muted = false; } }
             function setSpeed(value) { video.playbackRate = Math.max(0.25, Math.min(4, value)); updateStatus('PLAYBACK SPEED · ' + video.playbackRate.toFixed(2) + '×'); }
             function playerAction(action, percent) {
                 switch (action) {
@@ -1688,16 +1699,7 @@ header > div { min-width: 0; }
                     case 'start': video.currentTime = 0; break; case 'end': if (Number.isFinite(video.duration)) video.currentTime = video.duration; break;
                     case 'fullscreen': document.getElementById('btn-fullscreen').click(); break;
                     case 'jump': if (Number.isFinite(video.duration)) video.currentTime = video.duration * (Number(percent) / 100); break;
-                    case 'subtitles': {
-                        let tracks = video.textTracks;
-                        let hasTracks = tracks && tracks.length > 0;
-                        if (!hasTracks) { updateStatus('SUBTITLES · LOAD A VIDEO WITH CAPTIONS'); break; }
-                        let turnOn = !Array.from(tracks).some(t => t.mode === 'showing');
-                        Array.from(tracks).forEach(t => t.mode = turnOn ? 'showing' : 'hidden');
-                        const b = playerPanel.querySelector('[data-player-action="subtitles"]');
-                        if (b) b.setAttribute('aria-pressed', String(turnOn));
-                        updateStatus(turnOn ? 'SUBTITLES ON' : 'SUBTITLES OFF'); break;
-                    }
+                    case 'audio': if (window.imaxAudioTrackManager) window.imaxAudioTrackManager.openTrackPicker(); else updateStatus('AUDIO TRACKS · LOADING'); break;
                     case 'repeat': video.loop = !video.loop; {
                         const b = playerPanel.querySelector('[data-player-action="repeat"]');
                         if (b) b.setAttribute('aria-pressed', String(video.loop));
@@ -2808,6 +2810,8 @@ body.screen-controls-idle #seat-picker { visibility:hidden !important; }
 })();
 </script>
 
+
+<script type="module" src="./audio-track-manager.js"></script>
 
 </body>
 </html>
