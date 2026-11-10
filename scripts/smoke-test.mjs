@@ -49,7 +49,7 @@ new vm.Script(audioTrackManager, { filename: 'audio-track-manager.js' });
 assert.match(html, /data-player-action=["']audio["']/, 'Audio track control must exist');
 assert.doesNotMatch(html, /data-player-action=["']subtitles["']/, 'Old subtitle control action must be removed');
 assert.match(html, /audio-track-manager\.js/, 'Audio track manager must be loaded');
-assert.match(audioTrackManager, /engine\\.ffprobe/, 'Embedded audio streams must be inspected');
+assert.match(audioTrackManager, /engine[.]ffprobe/, 'Embedded audio streams must be inspected');
 assert.match(audioTrackManager, /-map', '0:'/i, 'Selected audio stream must be extracted');
 assert.match(audioTrackManager, /Original \/ default audio/, 'Original audio must remain selectable');
 assert.match(audioTrackManager, /video\.addEventListener\(['"]timeupdate['"]/, 'Extracted audio must stay synchronized to video time');
