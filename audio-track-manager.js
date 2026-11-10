@@ -97,7 +97,15 @@
         if (/error/i.test(message)) console.warn('[IMAX audio]', message);
       });
       const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
+      // GitHub Pages is a different origin from jsDelivr. FFmpeg's default
+      // worker URL points back to the CDN and browsers block that cross-origin
+      // Worker constructor. Serve the worker from a same-origin blob URL.
+      const classWorkerURL = await toBlobURL(
+        'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js',
+        'text/javascript'
+      );
       await engine.load({
+        classWorkerURL,
         coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
         wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm')
       });
