@@ -62,6 +62,14 @@
   };
   const renderTracks = () => {
     list.innerHTML = '';
+    const original = document.createElement('button');
+    original.type = 'button';
+    original.className = 'audio-track-option';
+    original.textContent = 'Original / default audio' + (!externalAudioActive ? '  ✓' : '');
+    original.setAttribute('aria-pressed', String(!externalAudioActive));
+    original.disabled = !externalAudioActive;
+    original.addEventListener('click', selectOriginalTrack);
+    list.appendChild(original);
     tracks.forEach((track, position) => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -142,8 +150,10 @@
         status('AUDIO TRACKS · NONE FOUND');
         return;
       }
-      if (selectedStreamIndex === null || !tracks.some((track) => track.index === selectedStreamIndex)) {
-        selectedStreamIndex = tracks[0].index;
+      if (selectedStreamIndex !== null && !tracks.some((track) => track.index === selectedStreamIndex)) {
+        selectedStreamIndex = null;
+        externalAudioActive = false;
+        video.muted = muted;
       }
       renderTracks();
       status('AUDIO TRACKS · ' + tracks.length + ' FOUND');
@@ -172,7 +182,7 @@
       if (code !== 0) throw new Error('FFmpeg could not extract this audio stream.');
       const data = await ffmpeg.readFile(outputName);
       revokeAudioUrl();
-      audioUrl = URL.createObjectURL(new Blob([data.buffer], { type: 'audio/mp4' }));
+      audioUrl = URL.createObjectURL(new Blob([data], { type: 'audio/mp4' }));
       audio.src = audioUrl;
       audio.volume = video.volume;
       audio.muted = muted;
@@ -205,6 +215,7 @@
   function selectOriginalTrack() {
     revokeAudioUrl();
     externalAudioActive = false;
+    selectedStreamIndex = null;
     video.muted = muted;
     status('AUDIO · ORIGINAL TRACK');
     setMenuOpen(false);
