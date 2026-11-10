@@ -1,49 +1,48 @@
 # IMAX 3D Simulator
 
-An interactive, browser-based 3D cinema experience inspired by large-format IMAX and ScreenX theatres. Explore the virtual auditorium, choose a viewpoint, customize the screen and ambience, and play a video from your device.
+An interactive 3D IMAX and ScreenX cinema simulator with a local video player. The original web experience remains the source of truth; Android packaging wraps the same app rather than replacing the theatre or player.
 
-## Experience
+## Preserved experience
 
-- Immersive 3D cinema environment rendered with Three.js.
-- 15 selectable seat viewpoints.
-- IMAX screen and optional ScreenX side-screen experience.
-- Screen aspect ratio and curvature controls.
-- Cinema ambience, lighting and rim-glow controls.
-- Local video upload and in-page playback controls.
-- Responsive layouts for desktop, tablet and mobile browsers.
-- Fullscreen and device-orientation controls where supported.
-- Saved display preferences in the browser.
+- Existing 3D cinema environment and 15 seat viewpoints.
+- IMAX screen and ScreenX side-screen experience.
+- Screen curvature, ambience, lighting and rim-glow controls.
+- Existing video upload, playback and audio-track systems.
+- Video Library / normal player mode alongside the original IMAX theatre mode.
 
-## Try it
+## Android APK build
 
-Open the published GitHub Pages site using the URL shown in the repository's Settings → Pages section. The site is a static web app; no account is required to explore the simulator.
+The repository includes a Capacitor 8 Android packaging pipeline. It copies the existing static website into the generated www folder for the native Android WebView without moving or deleting source files.
 
-## Run locally
+### Build locally
 
-Serve the repository root with any local static HTTP server, then open the local address in a modern browser. The simulator loads Three.js, OrbitControls, Tailwind CSS and Font Awesome from their public CDNs, so an internet connection is required for those libraries.
+```bash
+npm install
+npm run test
+npm run build:web
+npx cap add android
+npx cap sync android
+cd android
+./gradlew assembleDebug
+```
 
-## Validation
+The debug APK is generated at android/app/build/outputs/apk/debug/app-debug.apk.
+
+### Build using GitHub Actions
+
+After these changes are merged into main, open Actions → Build Android APK → Run workflow. Download the generated APK from the workflow run's Artifacts section.
+
+## Important limitations
+
+- This first Android packaging step embeds the existing app; it does not yet add a native MediaStore-based automatic phone video scanner or background audio service.
+- Video format support depends on Android media codecs and the browser engine. MKV/AVI support is not guaranteed for every device.
+- A debug APK is for testing. A signed release APK/AAB requires release signing configuration.
+
+## Web validation
 
 ```bash
 npm install
 npm test
 ```
 
-The smoke test checks the document structure, key cinema controls, branded icon, inline JavaScript syntax, launch metadata and selected regression safeguards.
-
-## Browser notes
-
-- Fullscreen and orientation locking depend on browser/device support and may require a secure context (HTTPS) and a user gesture.
-- Video playback depends on the browser's supported media formats and codecs.
-- Uploaded videos are selected locally in the browser; this project does not provide a movie catalogue or host uploaded videos.
-- Performance depends on the device GPU and the selected graphics quality.
-
-## Project
-
-- Main app: index.html
-- Cinema icon and social preview: assets/
-- Web app manifest: manifest.webmanifest
-- Automated smoke test: scripts/smoke-test.mjs
-- Android packaging configuration: capacitor.config.json
-
-This project is an independent cinema simulator and is not affiliated with or endorsed by IMAX Corporation. IMAX and ScreenX are referenced descriptively as cinema-format names.
+The simulator remains available as a static web app through GitHub Pages.
