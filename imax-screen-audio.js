@@ -1,11 +1,11 @@
-// IMAX screen L/C/R software audio matrix.
-// Stereo playback uses a phantom-centre matrix; hardware multi-channel output
-// remains dependent on browser, OS and the connected audio device.
+// Automatic IMAX audio routing.
+// Preserve stereo playback while folding discrete 5.1 centre/dialogue and surround
+// channels into stereo when the browser exposes them to Web Audio.
 (() => {
   const video = document.getElementById('imax-video');
   if (!video) return;
+
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  const state = { enabled: true, left: 1, center: 0.75, right: 1 };
   let context = null;
   const graphs = new WeakMap();
   const attached = new Set();
@@ -20,98 +20,99 @@
     if (!media || graphs.has(media)) return;
     const ctx = ensureContext();
     const source = ctx.createMediaElementSource(media);
-    const splitter = ctx.createChannelSplitter(2);
+    const splitter = ctx.createChannelSplitter(6);
     const merger = ctx.createChannelMerger(2);
-    const left = ctx.createGain();
-    const right = ctx.createGain();
-    const centerFromLeft = ctx.createGain();
-    const centerFromRight = ctx.createGain();
     const master = ctx.createGain();
+    const channelGains = Array.from({ length: 6 }, () => ctx.createGain());
 
     source.connect(splitter);
-    splitter.connect(left, 0);
-    splitter.connect(right, 1);
-    splitter.connect(centerFromLeft, 0);
-    splitter.connect(centerFromRight, 1);
-    left.connect(merger, 0, 0);
-    right.connect(merger, 0, 1);
-    // Fold a controlled mono centre image into both stereo outputs.
-    centerFromLeft.connect(merger, 0, 1);
-    centerFromRight.connect(merger, 0, 0);
+
+    // L/R: full level. Centre: dialogue is sent equally to both sides.
+    // LFE: subtle low-frequency support. Surrounds retain their side image
+    // with a small opposite-side bleed for ordinary stereo headphones/speakers.
+    const routes = [
+      [[0, 0, 1]],
+      [[1, 0, 1]],
+      [[2, 0, 0.707], [2, 0, 0]], // centre routes are wired below to both outputs
+      [[3, 0, 0.30]],
+      [[4, 0, 0.707], [4, 1, 0.16]],
+      [[5, 1, 0.707], [5, 0, 0.16]]
+    ];
+
+    splitter.connect(channelGains[0], 0);
+    channelGains[0].connect(merger, 0, 0);
+    splitter.connect(channelGains[1], 1);
+    channelGains[1].connect(merger, 0, 1);
+
+    splitter.connect(channelGains[2], 2);
+    channelGains[2].connect(merger, 0, 0);
+    channelGains[2].connect(merger, 0, 1);
+
+    splitter.connect(channelGains[3], 3);
+    channelGains[3].connect(merger, 0, 0);
+    channelGains[3].connect(merger, 0, 1);
+
+    splitter.connect(channelGains[4], 4);
+    channelGains[4].connect(merger, 0, 0);
+    channelGains[4].connect(merger, 0, 1);
+
+    splitter.connect(channelGains[5], 5);
+    channelGains[5].connect(merger, 0, 1);
+    channelGains[5].connect(merger, 0, 0);
+
     merger.connect(master);
     master.connect(ctx.destination);
 
-    const graph = { source, splitter, merger, left, right, centerFromLeft, centerFromRight, master };
+    const graph = { source, splitter, merger, master, channelGains };
     graphs.set(media, graph);
     attached.add(media);
-    applyLevels(graph);
+    applyAutomaticMix(graph);
   }
 
-  function applyLevels(graph) {
-    const t = context ? context.currentTime : 0;
-    const ramp = (node, value) => {
-      node.gain.cancelScheduledValues(t);
-      node.gain.setTargetAtTime(state.enabled ? value : 0, t, 0.035);
-    };
-    ramp(graph.left, state.left * 0.82);
-    ramp(graph.right, state.right * 0.82);
-    ramp(graph.centerFromLeft, state.center * 0.22);
-    ramp(graph.centerFromRight, state.center * 0.22);
-    ramp(graph.master, 1);
-  }
-
-  function updateAll() {
-    attached.forEach(media => {
-      const graph = graphs.get(media);
-      if (graph) applyLevels(graph);
+  function applyAutomaticMix(graph) {
+    const now = context.currentTime;
+    const levels = [0.92, 0.92, 0.82, 0.22, 0.58, 0.58];
+    graph.channelGains.forEach((gain, index) => {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(levels[index], now, 0.06);
     });
-    const stateLabel = document.getElementById('screen-audio-state');
-    if (stateLabel) stateLabel.textContent = state.enabled ? 'ACTIVE' : 'BYPASSED';
-  }
-
-  function setLevel(channel, value) {
-    if (!['left', 'center', 'right'].includes(channel)) return;
-    state[channel] = Math.max(0, Math.min(1.5, Number(value) / 100));
-    updateAll();
+    graph.master.gain.setTargetAtTime(1, now, 0.06);
   }
 
   function resume() {
     if (context && context.state === 'suspended') context.resume().catch(() => {});
   }
 
-  try {
-    connectMediaElement(video);
-    const manager = window.imaxAudioTrackManager;
-    if (manager && manager.audioElement) connectMediaElement(manager.audioElement);
-  } catch (error) {
-    console.warn('IMAX screen audio engine unavailable:', error);
-    const stateLabel = document.getElementById('screen-audio-state');
-    if (stateLabel) stateLabel.textContent = 'UNAVAILABLE';
+  function attachAvailableAudio() {
+    try {
+      connectMediaElement(video);
+      const manager = window.imaxAudioTrackManager;
+      if (manager && manager.audioElement) {
+        connectMediaElement(manager.audioElement);
+        manager.audioElement.addEventListener('playing', resume);
+      }
+    } catch (error) {
+      // Never leave the media element permanently silent if Web Audio setup fails.
+      console.warn('Automatic IMAX audio routing unavailable; using native playback:', error);
+    }
   }
 
+  attachAvailableAudio();
   document.addEventListener('pointerdown', resume, { passive: true });
   video.addEventListener('playing', resume);
-  const trackAudio = window.imaxAudioTrackManager && window.imaxAudioTrackManager.audioElement;
-  if (trackAudio) trackAudio.addEventListener('playing', resume);
-
-  ['left', 'center', 'right'].forEach(channel => {
-    const input = document.getElementById('screen-audio-' + channel);
-    if (!input) return;
-    input.addEventListener('input', () => setLevel(channel, input.value));
-  });
-  const reset = document.getElementById('screen-audio-reset');
-  if (reset) reset.addEventListener('click', () => {
-    state.left = 1; state.center = 0.75; state.right = 1;
-    ['left', 'center', 'right'].forEach(channel => {
-      const input = document.getElementById('screen-audio-' + channel);
-      if (input) input.value = String(Math.round(state[channel] * 100));
-    });
-    updateAll();
+  video.addEventListener('play', resume);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) resume();
   });
 
   window.imaxScreenAudio = {
-    setEnabled(enabled) { state.enabled = !!enabled; updateAll(); },
-    setLevel,
-    getState() { return { ...state, contextState: context ? context.state : 'unavailable' }; }
+    getState() {
+      return {
+        mode: 'automatic',
+        channels: 'stereo-fold-down-with-5.1-dialogue-preservation',
+        contextState: context ? context.state : 'unavailable',
+        connectedSources: attached.size
+      };
+    }
   };
 })();
