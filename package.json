@@ -2,9 +2,13 @@
   "name": "imax-3d-simulator-android",
   "version": "1.0.0",
   "private": true,
-  "description": "Interactive browser-based 3D IMAX and ScreenX virtual cinema simulator, with Capacitor Android packaging.",
+  "description": "Interactive browser-based 3D IMAX and ScreenX virtual cinema simulator, with Android APK packaging.",
   "scripts": {
-    "test": "node scripts/smoke-test.mjs"
+    "test": "node scripts/smoke-test.mjs",
+    "build:web": "node scripts/prepare-web.mjs",
+    "android:init": "npm run build:web && cap add android",
+    "android:sync": "npm run build:web && cap sync android",
+    "android:debug": "npm run build:web && cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/core": "^8.0.0",
