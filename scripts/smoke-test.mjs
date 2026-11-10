@@ -5,6 +5,7 @@ import vm from 'node:vm';
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const manifest = JSON.parse(await readFile(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
 const socialPreview = await readFile(new URL('../assets/social-preview.svg', import.meta.url), 'utf8');
+const audioTrackManager = await readFile(new URL('../audio-track-manager.js', import.meta.url), 'utf8');
 
 assert.match(html, /<!doctype html>/i, 'HTML document must have a doctype');
 assert.match(html, /<html[^>]+lang=/i, 'HTML language must be declared');
@@ -44,6 +45,14 @@ for (const [, attrs, body] of scripts) {
   new vm.Script(body, { filename: 'index.html:inline-script-' + inlineScriptCount });
 }
 assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be present');
+new vm.Script(audioTrackManager, { filename: 'audio-track-manager.js' });
+assert.match(html, /data-player-action=["']audio["']/, 'Audio track control must exist');
+assert.doesNotMatch(html, /data-player-action=["']subtitles["']/, 'Old subtitle control action must be removed');
+assert.match(html, /audio-track-manager\.js/, 'Audio track manager must be loaded');
+assert.match(audioTrackManager, /ffmpeg\.ffprobe/, 'Embedded audio streams must be inspected');
+assert.match(audioTrackManager, /-map', '0:'/i, 'Selected audio stream must be extracted');
+assert.match(audioTrackManager, /Original \/ default audio/, 'Original audio must remain selectable');
+assert.match(audioTrackManager, /video\.addEventListener\(['"]timeupdate['"]/, 'Extracted audio must stay synchronized to video time');
 
 assert.match(html, /video\.addEventListener\(['"]playing['"]/i, 'Playback start handler must exist');
 assert.match(html, /video\.addEventListener\(['"]pause['"]/i, 'Playback pause handler must exist');
