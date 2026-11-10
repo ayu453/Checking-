@@ -811,6 +811,7 @@ header > div { min-width: 0; }
         // Three.js Core Variables
         let scene, camera, renderer, controls;
         let screenMesh, screenGeometry, screenMaterial, screenFrameMesh;
+        let screenSpeakerGroup = null; // Physical L/C/R screen-channel speaker array
         let backWallMesh = null, backWallGeometry = null;
         let screenXGroup, screenXMaterials = [];
         let wallGlowLeft, wallGlowRight, aisleLights = [];
@@ -1371,6 +1372,52 @@ header > div { min-width: 0; }
             screenFrameMesh = new THREE.Mesh(frameGeo, frameMat);
             screenFrameMesh.position.set(0, centerY, -6.0);
             scene.add(screenFrameMesh);
+
+            // IMAX-style behind-screen L/C/R speaker array. The cabinets sit behind
+            // the projection plane and become visible when the auditorium is viewed
+            // from the service/back side; each channel has multiple driver units.
+            if (screenSpeakerGroup) {
+                scene.remove(screenSpeakerGroup);
+                screenSpeakerGroup.traverse((obj) => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                        mats.forEach((mat) => mat.dispose());
+                    }
+                });
+            }
+            screenSpeakerGroup = new THREE.Group();
+            screenSpeakerGroup.name = 'IMAX Behind-Screen LCR Speaker Array';
+            const cabinetMat = new THREE.MeshStandardMaterial({ color: 0x08090c, roughness: 0.88, metalness: 0.18 });
+            const grilleMat = new THREE.MeshStandardMaterial({ color: 0x252932, roughness: 0.72, metalness: 0.32 });
+            const coneMat = new THREE.MeshStandardMaterial({ color: 0x050608, roughness: 0.58, metalness: 0.12 });
+            const channelWidth = screenWidth * 0.285;
+            const speakerY = centerY;
+            [-1, 0, 1].forEach((channel, channelIndex) => {
+                const x = channel * screenWidth * 0.335;
+                const cabinet = new THREE.Mesh(new THREE.BoxGeometry(channelWidth, screenHeight * 0.76, 0.72), cabinetMat);
+                cabinet.position.set(x, speakerY, -6.62);
+                screenSpeakerGroup.add(cabinet);
+                // Three vertically stacked drivers per channel, aimed toward the auditorium.
+                [-0.25, 0, 0.25].forEach((offset) => {
+                    const radius = Math.min(screenHeight * 0.075, channelWidth * 0.12);
+                    const driver = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.12, 32), grilleMat);
+                    driver.rotation.x = Math.PI / 2;
+                    driver.position.set(x, speakerY + offset * screenHeight, -6.18);
+                    screenSpeakerGroup.add(driver);
+                    const dustCap = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.34, radius * 0.34, 0.125, 24), coneMat);
+                    dustCap.rotation.x = Math.PI / 2;
+                    dustCap.position.set(x, speakerY + offset * screenHeight, -6.10);
+                    screenSpeakerGroup.add(dustCap);
+                });
+                const label = new THREE.Mesh(
+                    new THREE.BoxGeometry(channelWidth * 0.55, 0.055, 0.045),
+                    new THREE.MeshBasicMaterial({ color: channelIndex === 1 ? 0x9f1239 : 0x555d6b })
+                );
+                label.position.set(x, speakerY - screenHeight * 0.39, -6.12);
+                screenSpeakerGroup.add(label);
+            });
+            scene.add(screenSpeakerGroup);
 
             // Screen rim glow: preserve the original plane size, depth, colour-following,
             // additive blending and toggle behaviour. Z=-1.5 matches the original placement
