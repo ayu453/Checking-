@@ -126,7 +126,7 @@
       const code = await engine.ffprobe([
         '-v', 'error', '-show_entries',
         'stream=index,codec_type:stream_tags=language,title',
-        '-of', 'json', '-o', outputName, inputName
+        '-of', 'json', inputName, '-o', outputName
       ]);
       if (code !== 0) throw new Error('Could not inspect the uploaded media streams.');
       const raw = await engine.readFile(outputName).catch(() => null);
