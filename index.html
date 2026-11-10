@@ -1686,7 +1686,7 @@ header > div { min-width: 0; }
             const playerPanel = document.getElementById('vlc-key-panel');
             function seekBy(seconds) { if (Number.isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds)); }
             function setVolume(value) { const next = Math.max(0, Math.min(1, value)); if (window.imaxAudioTrackManager) window.imaxAudioTrackManager.setVolume(next); else { video.volume = next; if (video.volume > 0) video.muted = false; } }
-            function setSpeed(value) { video.playbackRate = Math.max(0.25, Math.min(4, value)); updateStatus('PLAYBACK SPEED · ' + video.playbackRate.toFixed(2) + '×'); }
+            function setSpeed(value) { const next = Math.max(0.25, Math.min(4, value)); if (window.imaxAudioTrackManager) window.imaxAudioTrackManager.setPlaybackRate(next); else video.playbackRate = next; updateStatus('PLAYBACK SPEED · ' + video.playbackRate.toFixed(2) + '×'); }
             function playerAction(action, percent) {
                 switch (action) {
                     case 'play': togglePlay(); break;
