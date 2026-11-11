@@ -51,7 +51,7 @@ function init(){
  async function scan(){const p=plugin();if(!p?.listVideos){s.native=false;render();return} s.loading=true;render();try{const result=await p.listVideos();s.native=true;s.loading=false;s.files=(result.videos||[]).map(v=>({...v,native:true,id:String(v.id),duration:(Number(v.duration)||0)/1000,modified:(Number(v.dateAdded)||0)*1000,folder:v.folder||v.relativePath||'On this device',size:Number(v.size)||0}));render();loadVisibleThumbnails()}catch(err){s.native=false;s.loading=false;content.innerHTML='<div class="empty"><strong>Video access needed</strong><span>'+(esc(err?.message||'Allow video access in Android permissions, then scan again.'))+'</span><button data-a="scan">Try again</button><button data-a="add">Choose videos manually</button></div>';$('.count').textContent='Permission required'}}
  function show(){root.hidden=false;document.body.classList.add('il-open');if(s.files.length===0)scan();else render()}
  function hide(){root.hidden=true;document.body.classList.remove('il-open')}
- trigger.addEventListener('click',e=>{e.preventDefault();show()});
+ trigger.addEventListener('click',e=>{e.preventDefault();picker.click()});
  root.addEventListener('click',e=>{
   const a=e.target.closest('[data-a]')?.dataset.a;
   if(a==='close')hide();if(a==='add')picker.click();if(a==='scan')scan();
