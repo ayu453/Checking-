@@ -5,7 +5,8 @@ import vm from 'node:vm';
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const manifest = JSON.parse(await readFile(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
 const socialPreview = await readFile(new URL('../assets/social-preview.svg', import.meta.url), 'utf8');
-const audioTrackManager = await readFile(new URL('../audio-track-manager.js', import.meta.url), 'utf8');\nconst videoLibrary = await readFile(new URL('../video-library.js', import.meta.url), 'utf8');
+const audioTrackManager = await readFile(new URL('../audio-track-manager.js', import.meta.url), 'utf8');
+const videoLibrary = await readFile(new URL('../video-library.js', import.meta.url), 'utf8');
 
 assert.match(html, /<!doctype html>/i, 'HTML document must have a doctype');
 assert.match(html, /<html[^>]+lang=/i, 'HTML language must be declared');
@@ -45,7 +46,9 @@ for (const [, attrs, body] of scripts) {
   new vm.Script(body, { filename: 'index.html:inline-script-' + inlineScriptCount });
 }
 assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be present');
-new vm.Script(audioTrackManager, { filename: 'audio-track-manager.js' });\nnew vm.Script(videoLibrary, { filename: 'video-library.js' });\nassert.match(html, /video-library\\.js/, 'Custom video library must be loaded');
+new vm.Script(audioTrackManager, { filename: 'audio-track-manager.js' });
+new vm.Script(videoLibrary, { filename: 'video-library.js' });
+assert.match(html, /video-library\.js/, 'Custom video library must be loaded');
 assert.match(videoLibrary, /data-tab=.?folders/, 'Video library must include folders navigation');
 assert.match(videoLibrary, /imaxVideoHistory/, 'Video library must track playback history');
 assert.match(html, /data-player-action=["']audio["']/, 'Audio track control must exist');
