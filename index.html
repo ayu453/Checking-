@@ -360,7 +360,9 @@
                 <i class="fa-solid fa-sliders text-blue-400"></i>
                 <span class="hidden sm:inline">Controls</span>
             </button>
-            <button type="button" id="header-upload-video" class="cursor-pointer glass-panel px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-800 text-slate-300 transition flex items-center gap-2 border border-red-500/30" title="Open Video Library"><i class="fa-solid fa-film text-red-400"></i><span>Videos</span></button>
+            <label for="video-file-input" id="header-upload-video" class="cursor-pointer glass-panel px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-800 text-slate-300 transition flex items-center gap-2 border border-blue-500/30" title="Upload Video">
+                <i class="fa-solid fa-upload text-blue-400"></i><span>Upload Video</span>
+            </label>
 
             <button id="btn-recenter" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition" title="Recenter View">
                 <i class="fa-solid fa-crosshairs"></i>
@@ -371,7 +373,7 @@
         </div>
     </header>
 
-    <input type="file" id="video-file-input" accept="video/*" multiple class="hidden">
+    <input type="file" id="video-file-input" accept="video/*" class="hidden">
 
     <!-- Main-screen Quick Controls: seat selection and rim light are kept outside the settings panel. -->
     <div id="quick-controls" class="absolute left-4 bottom-36 z-20 flex items-start gap-2 pointer-events-auto">
@@ -1771,34 +1773,30 @@ header > div { min-width: 0; }
                 else if (e.key === '?') playerAction('help');
             });
 
-            function loadVideoIntoExistingTheater(source, objectUrl = null) {
-                videoDepthAnalysisCancelled = true;
-                videoDepthAnalysisReady = false;
-                precomputedVideoDepthFrames = [];
-                currentAppliedDepthFrameIndex = -1;
-                if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-                currentObjectUrl = objectUrl;
-                video.src = source;
-                video.load();
-                const readyButton = document.getElementById('btn-play-when-ready');
-                if (readyButton) { readyButton.disabled = true; readyButton.style.opacity = '0.5'; readyButton.style.cursor = 'not-allowed'; }
-                if (state.depthMode === 'aiVideoDepth') {
-                    video.pause();
-                    document.getElementById('ai-depth-status').textContent = 'Video loaded. Tap Analyze Video; playback will be available when analysis finishes.';
-                    updateStatus('VIDEO LOADED · ANALYZE DEPTH FIRST');
-                } else {
-                    video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
-                }
-            }
-
             videoFileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
-                if (file) { const objectUrl = URL.createObjectURL(file); loadVideoIntoExistingTheater(objectUrl, objectUrl); }
-            });
-
-            window.addEventListener('imax:play-native-video', (event) => {
-                const source = event.detail && event.detail.src;
-                if (typeof source === 'string' && source) loadVideoIntoExistingTheater(source, null);
+                if (file) {
+                    videoDepthAnalysisCancelled = true;
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
+                    if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+                    currentObjectUrl = URL.createObjectURL(file);
+                    video.src = currentObjectUrl;
+                    video.load();
+                    videoDepthAnalysisReady = false;
+                    precomputedVideoDepthFrames = [];
+                    currentAppliedDepthFrameIndex = -1;
+                    const readyButton = document.getElementById('btn-play-when-ready');
+                    if (readyButton) { readyButton.disabled = true; readyButton.style.opacity = '0.5'; readyButton.style.cursor = 'not-allowed'; }
+                    if (state.depthMode === 'aiVideoDepth') {
+                        video.pause();
+                        document.getElementById('ai-depth-status').textContent = 'Video loaded. Tap Analyze Video; playback will be available when analysis finishes.';
+                        updateStatus('VIDEO LOADED · ANALYZE DEPTH FIRST');
+                    } else {
+                        video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
+                    }
+                }
             });
         }
 
@@ -2860,7 +2858,7 @@ body.screen-controls-idle #seat-picker { visibility:hidden !important; }
 </script>
 
 
-<script src="./video-library.js"></script>\n<script type="module" src="./audio-track-manager.js"></script>
+<script type="module" src="./audio-track-manager.js"></script>
 <script type="module" src="./imax-screen-audio.js"></script>
 
 </body>
