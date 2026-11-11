@@ -45,7 +45,9 @@ for (const [, attrs, body] of scripts) {
   new vm.Script(body, { filename: 'index.html:inline-script-' + inlineScriptCount });
 }
 assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be present');
-new vm.Script(audioTrackManager, { filename: 'audio-track-manager.js' });\nnew vm.Script(videoLibrary, { filename: 'video-library.js' });\nassert.match(html, /video-library\\.js/, 'Custom video library must be loaded');\nassert.match(videoLibrary, /data-tab=.?folders/, 'Video library must include folders navigation');\nassert.match(videoLibrary, /imaxVideoHistory/, 'Video library must track playback history');
+new vm.Script(audioTrackManager, { filename: 'audio-track-manager.js' });\nnew vm.Script(videoLibrary, { filename: 'video-library.js' });\nassert.match(html, /video-library\\.js/, 'Custom video library must be loaded');
+assert.match(videoLibrary, /data-tab=.?folders/, 'Video library must include folders navigation');
+assert.match(videoLibrary, /imaxVideoHistory/, 'Video library must track playback history');
 assert.match(html, /data-player-action=["']audio["']/, 'Audio track control must exist');
 assert.doesNotMatch(html, /data-player-action=["']subtitles["']/, 'Old subtitle control action must be removed');
 assert.match(html, /audio-track-manager\.js/, 'Audio track manager must be loaded');
