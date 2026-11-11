@@ -180,6 +180,7 @@ public class MediaLibraryPlugin extends Plugin {
 (java_dir / "MediaLibraryPlugin.java").write_text(plugin)
 
 manifest_path = ROOT / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
+ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
 tree = ET.parse(manifest_path)
 root = tree.getroot()
 android = "{http://schemas.android.com/apk/res/android}"
