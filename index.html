@@ -360,9 +360,7 @@
                 <i class="fa-solid fa-sliders text-blue-400"></i>
                 <span class="hidden sm:inline">Controls</span>
             </button>
-            <label for="video-file-input" id="header-upload-video" class="cursor-pointer glass-panel px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-800 text-slate-300 transition flex items-center gap-2 border border-blue-500/30" title="Upload Video">
-                <i class="fa-solid fa-upload text-blue-400"></i><span>Upload Video</span>
-            </label>
+            <button type="button" id="header-upload-video" class="cursor-pointer glass-panel px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-800 text-slate-300 transition flex items-center gap-2 border border-red-500/30" title="Open Video Library"><i class="fa-solid fa-film text-red-400"></i><span>Videos</span></button>
 
             <button id="btn-recenter" class="glass-panel p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition" title="Recenter View">
                 <i class="fa-solid fa-crosshairs"></i>
@@ -373,7 +371,7 @@
         </div>
     </header>
 
-    <input type="file" id="video-file-input" accept="video/*" class="hidden">
+    <input type="file" id="video-file-input" accept="video/*" multiple class="hidden">
 
     <!-- Main-screen Quick Controls: seat selection and rim light are kept outside the settings panel. -->
     <div id="quick-controls" class="absolute left-4 bottom-36 z-20 flex items-start gap-2 pointer-events-auto">
@@ -2858,7 +2856,7 @@ body.screen-controls-idle #seat-picker { visibility:hidden !important; }
 </script>
 
 
-<script type="module" src="./audio-track-manager.js"></script>
+<script src="./video-library.js"></script>\n<script type="module" src="./audio-track-manager.js"></script>
 <script type="module" src="./imax-screen-audio.js"></script>
 
 </body>
