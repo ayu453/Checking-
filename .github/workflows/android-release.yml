@@ -57,6 +57,7 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+          python3 scripts/install-media-library-plugin.py
           sudo apt-get update
           sudo apt-get install -y python3-pil
           python3 scripts/generate-android-icon.py
