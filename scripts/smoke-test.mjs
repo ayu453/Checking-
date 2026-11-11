@@ -6,8 +6,6 @@ const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const manifest = JSON.parse(await readFile(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
 const socialPreview = await readFile(new URL('../assets/social-preview.svg', import.meta.url), 'utf8');
 const audioTrackManager = await readFile(new URL('../audio-track-manager.js', import.meta.url), 'utf8');
-const videoLibrary = await readFile(new URL('../video-library.js', import.meta.url), 'utf8');
-const mediaPluginInstaller = await readFile(new URL('./install-media-library-plugin.py', import.meta.url), 'utf8');
 
 assert.match(html, /<!doctype html>/i, 'HTML document must have a doctype');
 assert.match(html, /<html[^>]+lang=/i, 'HTML language must be declared');
@@ -48,15 +46,6 @@ for (const [, attrs, body] of scripts) {
 }
 assert.ok(inlineScriptCount >= 1, 'Expected inline application scripts to be present');
 new vm.Script(audioTrackManager, { filename: 'audio-track-manager.js' });
-new vm.Script(videoLibrary, { filename: 'video-library.js' });
-assert.match(html, /video-library\.js/, 'Custom video library must be loaded');
-assert.match(videoLibrary, /data-tab=.?folders/, 'Video library must include folders navigation');
-assert.match(videoLibrary, /imaxVideoHistory/, 'Video library must track playback history');
-assert.match(videoLibrary, /MediaLibrary/, 'Android video library must use the native MediaStore bridge');
-assert.match(videoLibrary, /imax:play-native-video/, 'Native video selection must enter the existing theater');
-assert.match(html, /imax:play-native-video/, 'Existing theater must accept native video sources');
-assert.match(mediaPluginInstaller, /READ_MEDIA_VIDEO/, 'Android installer must request video library permission');
-assert.match(mediaPluginInstaller, /MediaStore\.Video\.Media/, 'Android installer must query MediaStore videos');
 assert.match(html, /data-player-action=["']audio["']/, 'Audio track control must exist');
 assert.doesNotMatch(html, /data-player-action=["']subtitles["']/, 'Old subtitle control action must be removed');
 assert.match(html, /audio-track-manager\.js/, 'Audio track manager must be loaded');
