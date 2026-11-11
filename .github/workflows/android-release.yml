@@ -48,8 +48,6 @@ jobs:
           cp index.html www/index.html
           mkdir -p www/assets
           cp assets/icon.svg www/assets/icon.svg
-          cp video-library.js www/video-library.js
-          test -s www/video-library.js
           test -s www/index.html
           test -s www/assets/icon.svg
 
@@ -57,7 +55,6 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
-          python3 scripts/install-media-library-plugin.py
           sudo apt-get update
           sudo apt-get install -y python3-pil
           python3 scripts/generate-android-icon.py
