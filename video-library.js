@@ -48,7 +48,7 @@ function init(){
  document.body.append(root);
  const $=q=>root.querySelector(q),content=$('.content'),search=$('.search'),input=$('.search input');
  function plugin(){return window.Capacitor?.Plugins?.MediaLibrary||window.Capacitor?.Plugins?.mediaLibrary||null}
- async function scan(){const p=plugin();if(!p?.listVideos){s.native=false;render();return} s.loading=true;render();try{const result=await p.listVideos();s.native=true;s.files=(result.videos||[]).map(v=>({...v,native:true,id:String(v.id),duration:(Number(v.duration)||0)/1000,modified:(Number(v.dateAdded)||0)*1000,folder:v.folder||v.relativePath||'On this device',size:Number(v.size)||0}));render();loadVisibleThumbnails()}catch(err){s.native=false;s.loading=false;content.innerHTML='<div class="empty"><strong>Video access needed</strong><span>'+(esc(err?.message||'Allow video access in Android permissions, then scan again.'))+'</span><button data-a="scan">Try again</button><button data-a="add">Choose videos manually</button></div>';$('.count').textContent='Permission required'}}
+ async function scan(){const p=plugin();if(!p?.listVideos){s.native=false;render();return} s.loading=true;render();try{const result=await p.listVideos();s.native=true;s.loading=false;s.files=(result.videos||[]).map(v=>({...v,native:true,id:String(v.id),duration:(Number(v.duration)||0)/1000,modified:(Number(v.dateAdded)||0)*1000,folder:v.folder||v.relativePath||'On this device',size:Number(v.size)||0}));render();loadVisibleThumbnails()}catch(err){s.native=false;s.loading=false;content.innerHTML='<div class="empty"><strong>Video access needed</strong><span>'+(esc(err?.message||'Allow video access in Android permissions, then scan again.'))+'</span><button data-a="scan">Try again</button><button data-a="add">Choose videos manually</button></div>';$('.count').textContent='Permission required'}}
  function show(){root.hidden=false;document.body.classList.add('il-open');if(s.files.length===0)scan();else render()}
  function hide(){root.hidden=true;document.body.classList.remove('il-open')}
  trigger.addEventListener('click',e=>{e.preventDefault();show()});
@@ -82,5 +82,6 @@ function init(){
   content.innerHTML=[...groups].map(([day,items])=>'<section><h3>'+esc(day)+'</h3>'+items.map(f=>'<button class="video '+(s.selected.has(f.id)?'selected':'')+'" data-file="'+esc(f.id)+'"><span class="thumb" '+(f.native?'data-thumb-id="'+esc(f.id)+'"':'')+'>'+(f.thumb?'<img src="'+f.thumb+'" alt="">':'<i class="fa-solid fa-film"></i>')+'<span class="duration">'+fmt(f.duration)+'</span></span><span class="details"><strong title="'+esc(f.name)+'">'+esc(f.name)+'</strong><small>'+bytes(f.size)+' <span>'+(history[f.name]?'Watched':'Not played')+'</span></small></span>'+(root.classList.contains('select-mode')?'<span class="check">'+(s.selected.has(f.id)?'<i class="fa-solid fa-check"></i>':'')+'</span>':'')+'</button>').join('')+'</section>').join('');
   if(s.native)loadVisibleThumbnails()
  }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
