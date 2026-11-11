@@ -105,9 +105,11 @@ public class MediaLibraryPlugin extends Plugin {
             MediaStore.Video.Media.RELATIVE_PATH
         };
         String order = MediaStore.Video.Media.DATE_ADDED + " DESC";
+        Uri collection = Build.VERSION.SDK_INT >= 29
+            ? MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            : MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
         try (Cursor cursor = getContext().getContentResolver().query(
-                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                projection, null, null, order)) {
+                collection, projection, null, null, order)) {
             if (cursor != null) {
                 int idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID);
                 int nameCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME);
@@ -119,7 +121,7 @@ public class MediaLibraryPlugin extends Plugin {
                 int folderCol = cursor.getColumnIndex(MediaStore.Video.Media.RELATIVE_PATH);
                 while (cursor.moveToNext()) {
                     long id = cursor.getLong(idCol);
-                    Uri uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id);
+                    Uri uri = ContentUris.withAppendedId(collection, id);
                     JSObject item = new JSObject();
                     item.put("id", String.valueOf(id));
                     item.put("name", cursor.getString(nameCol));
@@ -152,7 +154,10 @@ public class MediaLibraryPlugin extends Plugin {
             return;
         }
         try {
-            Uri uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, Long.parseLong(id));
+            Uri collection = Build.VERSION.SDK_INT >= 29
+                ? MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+                : MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+            Uri uri = ContentUris.withAppendedId(collection, Long.parseLong(id));
             Bitmap bitmap;
             if (Build.VERSION.SDK_INT >= 29) {
                 bitmap = getContext().getContentResolver().loadThumbnail(uri, new Size(320, 180), null);
