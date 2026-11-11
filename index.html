@@ -1771,30 +1771,34 @@ header > div { min-width: 0; }
                 else if (e.key === '?') playerAction('help');
             });
 
+            function loadVideoIntoExistingTheater(source, objectUrl = null) {
+                videoDepthAnalysisCancelled = true;
+                videoDepthAnalysisReady = false;
+                precomputedVideoDepthFrames = [];
+                currentAppliedDepthFrameIndex = -1;
+                if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = objectUrl;
+                video.src = source;
+                video.load();
+                const readyButton = document.getElementById('btn-play-when-ready');
+                if (readyButton) { readyButton.disabled = true; readyButton.style.opacity = '0.5'; readyButton.style.cursor = 'not-allowed'; }
+                if (state.depthMode === 'aiVideoDepth') {
+                    video.pause();
+                    document.getElementById('ai-depth-status').textContent = 'Video loaded. Tap Analyze Video; playback will be available when analysis finishes.';
+                    updateStatus('VIDEO LOADED · ANALYZE DEPTH FIRST');
+                } else {
+                    video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
+                }
+            }
+
             videoFileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
-                if (file) {
-                    videoDepthAnalysisCancelled = true;
-                    videoDepthAnalysisReady = false;
-                    precomputedVideoDepthFrames = [];
-                    currentAppliedDepthFrameIndex = -1;
-                    if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-                    currentObjectUrl = URL.createObjectURL(file);
-                    video.src = currentObjectUrl;
-                    video.load();
-                    videoDepthAnalysisReady = false;
-                    precomputedVideoDepthFrames = [];
-                    currentAppliedDepthFrameIndex = -1;
-                    const readyButton = document.getElementById('btn-play-when-ready');
-                    if (readyButton) { readyButton.disabled = true; readyButton.style.opacity = '0.5'; readyButton.style.cursor = 'not-allowed'; }
-                    if (state.depthMode === 'aiVideoDepth') {
-                        video.pause();
-                        document.getElementById('ai-depth-status').textContent = 'Video loaded. Tap Analyze Video; playback will be available when analysis finishes.';
-                        updateStatus('VIDEO LOADED · ANALYZE DEPTH FIRST');
-                    } else {
-                        video.play().catch(() => updateStatus('VIDEO LOADED · TAP PLAY'));
-                    }
-                }
+                if (file) { const objectUrl = URL.createObjectURL(file); loadVideoIntoExistingTheater(objectUrl, objectUrl); }
+            });
+
+            window.addEventListener('imax:play-native-video', (event) => {
+                const source = event.detail && event.detail.src;
+                if (typeof source === 'string' && source) loadVideoIntoExistingTheater(source, null);
             });
         }
 
