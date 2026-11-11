@@ -47,7 +47,9 @@ jobs:
           mkdir -p www
           cp index.html www/index.html
           mkdir -p www/assets
-          cp assets/icon.svg www/assets/icon.svg\n          cp video-library.js www/video-library.js\n          test -s www/video-library.js
+          cp assets/icon.svg www/assets/icon.svg
+          cp video-library.js www/video-library.js
+          test -s www/video-library.js
           test -s www/index.html
           test -s www/assets/icon.svg
 
